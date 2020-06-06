@@ -17,6 +17,9 @@ df <- read.csv('data/train.csv')
 
 # Analisis preeliminar
 
+
+fjdsfadsafsddfas
+
 ```{r}
 str(df)
 ```
