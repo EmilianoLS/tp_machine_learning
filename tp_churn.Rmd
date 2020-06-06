@@ -17,7 +17,6 @@ df <- read.csv('data/train.csv')
 
 # Analisis preeliminar
 
-
 ```{r}
 str(df)
 ```
