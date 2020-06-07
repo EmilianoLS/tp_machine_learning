@@ -1749,39 +1749,34 @@ summary {
 
 
 <!-- rnb-text-begin -->
+<p>Instalo las librerias y asigno la ruta en github donde esta la base a estudiar</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuIyBDYXJnbyBkaXJlY2Npb24gZGUgdHJhYmFqb1xuXG5zZXR3ZCgnQzovVXNlcnMvZWxvc2Fzc28vT25lRHJpdmUgLSBVbml2ZXJzaWRhZCBUb3JjdWF0byBEaSBUZWxsYS9NYWNoaW5lIExlYXJuaW5nL1RQLycpXG5gYGBcbmBgYCJ9 -->
-<pre class="r"><code>```r
-# Cargo direccion de trabajo
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyAgYnVzY28gbGlicmVyaWFzIGEgdXNhciB5IGFzaWdubyBsYSBydXRhIGVuIGdpdGh1YiBcblxucm0obGlzdCA9IGxzKCkpXG4gXG5saWJyYXJ5KHJlYWRyKVxuXG5SdXRhIDwtIFwiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0VtaWxpYW5vTFMvdHBfbWFjaGluZV9sZWFybmluZy9tYXN0ZXIvdHJhaW4uY3N2XCJcblxuXG5gYGAifQ== -->
+<pre class="r"><code>#  busco librerias a usar y asigno la ruta en github 
 
-setwd(&#39;C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/&#39;)</code></pre>
-<pre><code>
-&lt;!-- rnb-source-end --&gt;
+rm(list = ls())
+ 
+library(readr)
 
-&lt;!-- rnb-chunk-end --&gt;
-
-
-&lt;!-- rnb-text-begin --&gt;
-
-
-Cargo los datos
-
-
-&lt;!-- rnb-text-end --&gt;
-
-
-&lt;!-- rnb-chunk-begin --&gt;
-
-
-&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZG93bmxvYWQgPC0gZG93bmxvYWQuZmlsZSgnaHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL2RyaXZlL2ZvbGRlcnMvMVo1MlA0SElGSWRfY3l2LWtuMTRaZzZpSjdQeERVeHpQJylcbmBgYCJ9 --&gt;
-
-```r
-download &lt;- download.file(&#39;https://drive.google.com/drive/folders/1Z52P4HIFId_cyv-kn14Zg6iJ7PxDUxzP&#39;)</code></pre>
+Ruta &lt;- &quot;https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv&quot;
+</code></pre>
 <!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiRXJyb3IgaW4gZG93bmxvYWQuZmlsZShcImh0dHBzOi8vZHJpdmUuZ29vZ2xlLmNvbS9kcml2ZS9mb2xkZXJzLzFaNTJQNEhJRklkX2N5di1rbjE0Wmc2aUo3UHhEVXh6UFwiKSA6IFxuICBlbCBhcmd1bWVudG8gXCJkZXN0ZmlsZVwiIGVzdMOhIGF1c2VudGUsIHNpbiB2YWxvciBwb3Igb21pc2nDs25cbiJ9 -->
-<pre><code>Error in download.file(&quot;https://drive.google.com/drive/folders/1Z52P4HIFId_cyv-kn14Zg6iJ7PxDUxzP&quot;) : 
-  el argumento &quot;destfile&quot; está ausente, sin valor por omisión</code></pre>
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<p>Cargo los datos</p>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZGF0YSA8LSByZWFkX2NzdihSdXRhLFxuICAgICAgICAgICAgICAgICBjb2xfbmFtZXMgPSBUUlVFKVxuYGBgIn0= -->
+<pre class="r"><code>data &lt;- read_csv(Ruta,
+                 col_names = TRUE)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiUGFyc2VkIHdpdGggY29sdW1uIHNwZWNpZmljYXRpb246XG5jb2xzKFxuICAuZGVmYXVsdCA9IGNvbF9kb3VibGUoKVxuKVxuU2VlIHNwZWMoLi4uKSBmb3IgZnVsbCBjb2x1bW4gc3BlY2lmaWNhdGlvbnMuXG4ifQ== -->
+<pre><code>Parsed with column specification:
+cols(
+  .default = col_double()
+)
+See spec(...) for full column specifications.</code></pre>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
@@ -1789,15 +1784,13 @@ download &lt;- download.file(&#39;https://drive.google.com/drive/folders/1Z52P4H
 <h1>Analisis preeliminar</h1>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuc3RyKGRmKVxuYGBgXG5gYGAifQ== -->
-<pre class="r"><code>```r
-str(df)</code></pre>
-<p>```</p>
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc3RyKGRhdGEpXG5gYGAifQ== -->
+<pre class="r"><code>str(data)</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 </div>
 
-<div id="rmd-source-code">LS0tDQp0aXRsZTogIlRQX0NIVVJOIg0Kb3V0cHV0OiBodG1sX25vdGVib29rDQotLS0NCg0KYGBge3J9DQojIENhcmdvIGRpcmVjY2lvbiBkZSB0cmFiYWpvDQoNCnNldHdkKCdDOi9Vc2Vycy9lbG9zYXNzby9PbmVEcml2ZSAtIFVuaXZlcnNpZGFkIFRvcmN1YXRvIERpIFRlbGxhL01hY2hpbmUgTGVhcm5pbmcvVFAvJykNCmBgYA0KDQpDYXJnbyBsb3MgZGF0b3MNCg0KYGBge3J9DQpkZiA8LSByZWFkLmNzdignZGF0YS90cmFpbi5jc3YnKQ0KYGBgDQoNCiMgQW5hbGlzaXMgcHJlZWxpbWluYXINCg0KYGBge3J9DQpzdHIoZGYpDQpgYGANCg==</div>
+<div id="rmd-source-code">LS0tDQp0aXRsZTogIlRQX0NIVVJOIg0Kb3V0cHV0OiBodG1sX25vdGVib29rDQotLS0NCiAgSW5zdGFsbyBsYXMgbGlicmVyaWFzIHkgYXNpZ25vIGxhIHJ1dGEgZW4gZ2l0aHViIGRvbmRlIGVzdGEgbGEgYmFzZSBhIGVzdHVkaWFyDQoNCmBgYHtyfQ0KIyAgYnVzY28gbGlicmVyaWFzIGEgdXNhciB5IGFzaWdubyBsYSBydXRhIGVuIGdpdGh1YiANCg0Kcm0obGlzdCA9IGxzKCkpDQogDQpsaWJyYXJ5KHJlYWRyKQ0KDQpSdXRhIDwtICJodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vRW1pbGlhbm9MUy90cF9tYWNoaW5lX2xlYXJuaW5nL21hc3Rlci90cmFpbi5jc3YiDQoNCg0KYGBgDQoNCkNhcmdvIGxvcyBkYXRvcw0KDQpgYGB7cn0NCmRhdGEgPC0gcmVhZF9jc3YoUnV0YSwNCiAgICAgICAgICAgICAgICAgY29sX25hbWVzID0gVFJVRSkNCg0KYGBgDQoNCiMgQW5hbGlzaXMgcHJlZWxpbWluYXINCg0KYGBge3J9DQpzdHIoZGF0YSkNCmBgYA0K</div>
 
 
 

@@ -2,21 +2,30 @@
 title: "TP_CHURN"
 output: html_notebook
 ---
+  Instalo las librerias y asigno la ruta en github donde esta la base a estudiar
 
 ```{r}
-# Cargo direccion de trabajo
+#  busco librerias a usar y asigno la ruta en github 
 
-setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/')
+rm(list = ls())
+ 
+library(readr)
+
+Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
+
+
 ```
 
 Cargo los datos
 
 ```{r}
-df <- read.csv('data/train.csv')
+data <- read_csv(Ruta,
+                 col_names = TRUE)
+
 ```
 
 # Analisis preeliminar
 
 ```{r}
-str(df)
+str(data)
 ```
