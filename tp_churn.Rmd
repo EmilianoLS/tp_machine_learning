@@ -6,7 +6,6 @@ output: html_notebook
 
 ```{r}
 #  busco librerias a usar y asigno la ruta en github 
-
 rm(list = ls())
  
 library(readr)
@@ -20,12 +19,17 @@ Cargo los datos
 
 ```{r}
 data <- read_csv(Ruta,
-                 col_names = TRUE)
+                 col_names = TRUE,
+                 col_types = NULL)
 
+?read_csv()
 ```
 
 # Analisis preeliminar
 
 ```{r}
+
+as.data.frame(data)
 str(data)
+
 ```
