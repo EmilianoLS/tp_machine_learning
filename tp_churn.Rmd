@@ -4,11 +4,16 @@ output: html_notebook
 ---
   Instalo las librerias y asigno la ruta en github donde esta la base a estudiar
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 #  busco librerias a usar y asigno la ruta en github 
 rm(list = ls())
  
 library(readr)
+library(papeR)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(plotly)
 
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
 
@@ -18,18 +23,53 @@ Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master
 Cargo los datos
 
 ```{r}
-data <- read_csv(Ruta,
-                 col_names = TRUE,
-                 col_types = NULL)
-
-?read_csv()
+data <- read_csv(url(Ruta))
 ```
 
 # Analisis preeliminar
 
 ```{r}
-
-as.data.frame(data)
-str(data)
-
+head(data)                # Veo como se estructuran los datos
 ```
+
+```{r}
+dim(data)                           # Estructura del DataFrame
+```
+
+El dataframe contiene 33008 registros y 312 variables. No hay mucha descripción sobre el contenido de cada una, con excepción de *age*,*nac*,*ID* y algunas otras más que contienen información del saldo.
+
+```{r}
+ncol(select_if(data, is.numeric))   # Cantidad de columnas numericas
+```
+
+No existen variables del tipo categoricas.
+
+Resumen de las variables predictivas
+
+```{r warning=FALSE}
+mins <- as.data.frame(sapply(data, min))
+maxs <- as.data.frame(sapply(data, max))
+
+mins$variable <- row.names(mins)
+maxs$variable <- row.names(maxs)
+
+rownames(mins) <- NULL
+rownames(maxs) <- NULL
+
+names(mins)[1] <- 'minimos'
+names(maxs)[1] <- 'maximos'
+
+#plot1 <- ggplot(mins,aes(y = minimos, x = row.names(mins))) + geom_point() + labs(xlab = 'Variables')
+#plot2 <- ggplot(maxs,aes(y = maximos, x = row.names(mins))) + geom_point() + labs(xlab = 'Variables')
+#ggarrange(plot1, plot2,
+#          labels = c("Minimos de todas las variables", "Maximos de todas las variables"),
+#          ncol = 2, nrow = 1)
+#maxs <- as.data.frame(sapply(data, max))
+```
+
+```{r}
+fig <- plot_ly(mins, x = ~variable, y = ~minimos, type = 'scatter', mode = 'lines')
+
+fig
+```
+
