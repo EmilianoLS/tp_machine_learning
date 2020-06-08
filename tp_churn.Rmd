@@ -68,8 +68,30 @@ names(maxs)[1] <- 'maximos'
 ```
 
 ```{r}
-fig <- plot_ly(mins, x = ~variable, y = ~minimos, type = 'scatter', mode = 'lines')
 
+# Grafico de minimos
+
+fig1 <- plot_ly(mins, x = ~variable, y = ~minimos, type = 'scatter', mode = 'markers')
+#fig1 <- fig1 %>% add_lines(name = ~"Minimos")
+#fig1 <- fig1 %>% layout(title = 'Minimos en todas las variables')
+
+# Grafico de maximos
+
+fig2 <- plot_ly(maxs, x = ~variable, y = ~maximos, type = 'scatter', mode = 'markers')
+#fig2 <- fig2 %>% add_lines(name = ~"Maximos")
+#fig2 <- fig2 %>% layout(title = 'Maximos en todas las variables')
+fig <- subplot(fig1, fig2, nrows = 1) 
+fig <- fig %>% layout(title = "Metricas", )
 fig
+```
+
+```{r}
+fig <- plot_ly(type = 'box')
+fig <- fig %>% add_boxplot(y = mins$minimos, name = 'Minimos', boxpoints = 'suspectedoutliers',marker = list(color = 'rgb(8,81,156)',
+                            outliercolor = 'rgba(219, 64, 82, 0.6)',
+                            line = list(outliercolor = 'rgba(219, 64, 82, 1.0)',
+                                        outlierwidth = 4)))
+fig
+
 ```
 
