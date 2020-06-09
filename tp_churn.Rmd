@@ -14,6 +14,7 @@ library(dplyr)
 library(ggplot2)
 library(ggpubr)
 library(plotly)
+library(reshape2)
 
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
 
@@ -49,49 +50,35 @@ Resumen de las variables predictivas
 ```{r warning=FALSE}
 mins <- as.data.frame(sapply(data, min))
 maxs <- as.data.frame(sapply(data, max))
+dev  <- as.data.frame(sapply(data, sd))
 
 mins$variable <- row.names(mins)
 maxs$variable <- row.names(maxs)
+dev$variable  <- row.names(dev)
 
 rownames(mins) <- NULL
 rownames(maxs) <- NULL
+rownames(dev)  <- NULL
 
 names(mins)[1] <- 'minimos'
 names(maxs)[1] <- 'maximos'
-
-#plot1 <- ggplot(mins,aes(y = minimos, x = row.names(mins))) + geom_point() + labs(xlab = 'Variables')
-#plot2 <- ggplot(maxs,aes(y = maximos, x = row.names(mins))) + geom_point() + labs(xlab = 'Variables')
-#ggarrange(plot1, plot2,
-#          labels = c("Minimos de todas las variables", "Maximos de todas las variables"),
-#          ncol = 2, nrow = 1)
-#maxs <- as.data.frame(sapply(data, max))
+names(dev)[1]  <- 'desviacion'
 ```
 
-```{r}
 
-# Grafico de minimos
+```{r warning=FALSE}
+fig1 <- plot_ly(type = 'box')
+fig2 <- plot_ly(type = 'box')
+fig3 <- plot_ly(type = 'box')
 
-fig1 <- plot_ly(mins, x = ~variable, y = ~minimos, type = 'scatter', mode = 'markers')
-#fig1 <- fig1 %>% add_lines(name = ~"Minimos")
-#fig1 <- fig1 %>% layout(title = 'Minimos en todas las variables')
+fig1 <- fig1 %>% add_boxplot(y = mins$minimos, name = 'Minimos')
+fig2 <- fig2 %>% add_boxplot(y = maxs$maximos, name = 'Maximos')
+fig3 <- fig3 %>% add_boxplot(y = dev$desviacion, name = 'Desviacion Estándar')
 
-# Grafico de maximos
-
-fig2 <- plot_ly(maxs, x = ~variable, y = ~maximos, type = 'scatter', mode = 'markers')
-#fig2 <- fig2 %>% add_lines(name = ~"Maximos")
-#fig2 <- fig2 %>% layout(title = 'Maximos en todas las variables')
-fig <- subplot(fig1, fig2, nrows = 1) 
-fig <- fig %>% layout(title = "Metricas", )
+fig <- subplot(fig1,fig2,fig3)
+fig <- fig %>% layout(title = 'Minimos y máximos de todas las variables')
 fig
 ```
 
-```{r}
-fig <- plot_ly(type = 'box')
-fig <- fig %>% add_boxplot(y = mins$minimos, name = 'Minimos', boxpoints = 'suspectedoutliers',marker = list(color = 'rgb(8,81,156)',
-                            outliercolor = 'rgba(219, 64, 82, 0.6)',
-                            line = list(outliercolor = 'rgba(219, 64, 82, 1.0)',
-                                        outlierwidth = 4)))
-fig
 
-```
 
