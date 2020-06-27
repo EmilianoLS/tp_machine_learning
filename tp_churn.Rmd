@@ -1,6 +1,9 @@
 ---
 title: "TP_CHURN"
-output: html_notebook
+output:
+  html_notebook: default
+  pdf_document: default
+  word_document: default
 ---
   Instalo las librerias y asigno la ruta en github donde esta la base a estudiar
 
@@ -8,77 +11,418 @@ output: html_notebook
 #  busco librerias a usar y asigno la ruta en github 
 rm(list = ls())
  
-library(readr)
-library(papeR)
-library(dplyr)
-library(ggplot2)
-library(ggpubr)
-library(plotly)
-library(reshape2)
+setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
 
+source('functions_R.R')
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
 
 
 ```
 
-Cargo los datos
+# Carga de datos
 
-```{r}
+```{r message=FALSE}
 data <- read_csv(url(Ruta))
+data$TARGET <- factor(if_else(data$TARGET == 1, 'churn', 'no_churn'))
 ```
 
 # Analisis preeliminar
 
-```{r}
-head(data)                # Veo como se estructuran los datos
-```
+Antes de hacer un análisis profundo, observamos la estructura general de los datos, cómo se encuentran dispuestos, cantidad de columnas, filas, tipos de datos, etc.
 
-```{r}
-dim(data)                           # Estructura del DataFrame
-```
+Esta información nos va a dar un entendimiento global de los datos, permitiendo descubrir insights que nos ayuden a descubrir alguna inconsistencia que haya que corregir, previo a efectuar un análisis descriptivo más detallado.
 
-El dataframe contiene 33008 registros y 312 variables. No hay mucha descripción sobre el contenido de cada una, con excepción de *age*,*nac*,*ID* y algunas otras más que contienen información del saldo.
 
 ```{r}
-ncol(select_if(data, is.numeric))   # Cantidad de columnas numericas
+# Veo como se estructuran los datos
+
+head(data)
+dim(data)       
 ```
 
-No existen variables del tipo categoricas.
+El dataframe contiene 33008 registros y 312 variables. No hay mucha descripción sobre el contenido de cada una, con excepción de *age*,*nac*,*ID*.
 
-Resumen de las variables predictivas
+Adicionalmente, en un archivo se indica la siguiente descripción sobre las variables:
 
-```{r warning=FALSE}
-mins <- as.data.frame(sapply(data, min))
-maxs <- as.data.frame(sapply(data, max))
-dev  <- as.data.frame(sapply(data, sd))
+* Variables con el prefijo *'imp'* y *'saldo'* indican importes y saldos, por lo que son variables numéricas.
+* Variables con el prefijo *'num'* indican un cierto número de cosas: Contactos al call center, cantidad de productos contratados, etc.
+* Variables con el prefijo *'ind'* indican un flag, por lo que son variables de tipo booleanas.
+* Variables con el prefijo *'delta'* indican cambios en el tiempo de alguna de las variables
 
-mins$variable <- row.names(mins)
-maxs$variable <- row.names(maxs)
-dev$variable  <- row.names(dev)
+Luego existen tres variables *var21*, *var36* y *var38* que no se sabe bien qué describen por lo que se van a estudiar posteriormente. 
 
-rownames(mins) <- NULL
-rownames(maxs) <- NULL
-rownames(dev)  <- NULL
+## Clases de datos en las variables
 
-names(mins)[1] <- 'minimos'
-names(maxs)[1] <- 'maximos'
-names(dev)[1]  <- 'desviacion'
+```{r}
+# Clases de variables
+table(sapply(data, class))   
+```
+
+Como se ve, no existen variables del tipo categoricas, son todas numericas excepto por la variable TARGET. 
+
+Sin embargo, como se mencionó anteriormente, las variables con prefijo *'ind'* deberían ser booleanas.
+
+Cambiamos estas variables a su valor correspondiente.
+
+#### Conversión de variables
+
+```{r}
+# Creo un vector con las columnas para castear
+bool_columns <- names(data)[grepl("ind", names(data))]
+# Hago el cast
+data[bool_columns] <- lapply(data[bool_columns], as.logical)
+# Vuelvo a chequear las clases de variables
+
+table(sapply(data, class)) 
+```
+
+Como se ve, ahora todas las variables tienen su clase correspondiente.
+
+El siguiente paso es hacer un análisis exploratorio de las variables para entender cómo se relacionan, buscar si existen tendencias o alguna variable que permita diferenciar lo suficientemente bien a los grupos que hacen churn vs los que no lo hacen.
+
+# Exploratory Data Analysis
+
+Antes de empezar a analizar las muchas variables similares que hay, comenzamos estudiando las distribuciones para las variables de edad, la target y las tres variables desconocidas. 
+
+#### Distribución de la variable *'Age'*
+
+```{r}
+
+histplot <- ggplot(data) + geom_histogram(aes(x = data$age), bins = 100) + 
+  geom_vline(aes(xintercept = mean(data$age)), colour = 'red',linetype = "longdash") + 
+  geom_vline(aes(xintercept = median(data$age)), colour = 'blue', linetype = 'longdash') + 
+  annotate('text',x = mean(data$age)+10, y = 2000, label = 'Promedio', colour = 'red') +
+  annotate('text',x = median(data$age)-10, y = 4000, label = 'Media', colour = 'blue') +
+  ggtitle('Distribución de la edad') + xlab('Edad')
+
+caja <- ggplot(data) + geom_boxplot(aes(x = age)) + ggtitle('Distribución de la edad') + xlab('Edad')
+grid.arrange(histplot, caja, ncol = 1)
+
 ```
 
 
-```{r warning=FALSE}
-fig1 <- plot_ly(type = 'box')
-fig2 <- plot_ly(type = 'box')
-fig3 <- plot_ly(type = 'box')
+La edad no parece seguir una distribución muy normal, pareciera estar más cercana a los valores pequeños (alrededor de los 20-30 años), con mayor concentración en una edad en particular que parece que ocurre con mayor fecuencia:
 
-fig1 <- fig1 %>% add_boxplot(y = mins$minimos, name = 'Minimos')
-fig2 <- fig2 %>% add_boxplot(y = maxs$maximos, name = 'Maximos')
-fig3 <- fig3 %>% add_boxplot(y = dev$desviacion, name = 'Desviacion Estándar')
-
-fig <- subplot(fig1,fig2,fig3)
-fig <- fig %>% layout(title = 'Minimos y máximos de todas las variables')
-fig
+```{r}
+ages <- as.data.frame(table(data$age))
+order.age <- order(ages$Freq, decreasing = TRUE)
+ages <- ages[order.age, ]
+ages[c(1:5),]
 ```
 
+La edad más común es de 23 años, incluso el top 5 de edades va de los 23 a los 27. 
+
+Existen algunos datos atípicos, extremos, que están por debajo de los 20 años. Como la empresa se encuentra anonimizada, no conocemos el negocio, por lo que no sabemos si alguna edad relativamente pequeña, como por ejemplo 15 años, es algo raro o no. Por ejemplo, en el caso de que se traten de clientes de un banco, sería raro que una persona de menos de 18 años sea cliente, pero si se trata de datos de una aplicación móvil, no necesariamente es algo fuera de lo común.
+
+```{r}
+cat('Edad mínima:', min(data$age), '\nEdad máxima:', max(data$age))
+```
+
+Evidentemente existen valores atípicos en al menos las edades más bajas, ya que un cliente de 5 años, no importa el negocio, es un outlier.
+
+#### Distribución de la edad por grupo de churn/no churn
+
+```{r}
+ggplot(data) + geom_histogram(aes(x = age, color = TARGET), bins = 100) + ggtitle('Distribución de la edad según el target')
+```
+
+#### Proporción de usuarios
+
+```{r}
+ggplot(data, aes(TARGET)) + geom_bar() + ggtitle('Proporción de churn/no churn')
+```
+
+Si miramos la proporción:
+
+```{r}
+prop.table(table(data$TARGET))
+```
+
+Evidentemente la variable se encuentra desbalanceada, con un 90% de los usuarios que no hicieron churn, contra un 10% de usuarios que si lo hicieron. 
+
+Sin embargo, no es un desbalanceo tal que implique (por el momento) tomar alguna medida de rebalanceo como *undersampling* u *oversampling*.
+
+# REPLICAR EL ANALISIS QUE SE HIZO EN PYTHON
+
+# Data Cleaning
+
+En esta etapa se toman ciertas medidas 'sanitarias' para eliminar valores atípicos, como los que se encontraron en la variable *'age'* y se hace un tratamiento sobre los valores nulos.
+
+### Valores Nulos o *NAs*
+
+```{r}
+# Busco todos los nulos
+sum(is.na(data))
+```
+
+56 es una cantidad relativamente baja de *NAs*, sobretodo teniendo en cuenta que hay aproximadamente 30.000 registros. Vemos en dónde se encuentran estos registros faltantes:
+
+```{r message=FALSE, warning=FALSE}
+# Llamo a una función para encontrar la proporción nulos por columna
+
+find_nulls(data)
+```
+
+El resultado anterior ilustra que solamente una columna es la que tiene el total de valores *NAs* y es la variable *'nac'*, con un 16% de sus registros como valores missings. Existen distintas formas para tratar a estos valores:
+
+* Eliminar los registros que tengan valores nulos
+* Eliminar toda la variable con nulos
+* Imputar los valores faltantes por algún valor que creamos correspondiente (promedio, valor más frecuente, etc.)
+
+Debido a la baja cantidad de nulos que representan, y como tampoco tenemos del todo claro qué representa la variable, optamos por eliminar estos registros.
+
+```{r}
+# Eliminamos los nulos
+data <- drop_na(data)
+dim(data)
+```
+
+Arriba se encuentran las nuevas dimensiones del dataset. Lógicamente, el resultado es el mismo en cuanto a columnas, mientras que en cuanto a registros, disminuyó en 56, esto corresponde a los valores que acabamos de retirar.
+
+Con esto, cubrimos todo lo que podía hacerse respecto de los valores *NAs* ya que no hay más columnas con éstos. Por esto pasamos a estudiar los valores extremos o *outliers*.
+
+### Handling Outliers
+
+Comúnmente se considera Outlier a todo registro que esté "fuera de lo común", todo registro que resalte del resto. Esto no es algo muy definido, ya que no existe una única regla para determinar qué es lo común. 
+
+Por eso existen diversas formas para detectar estos valores extremos que no parecieran seguir el mismo comportamiento que el resto, nosotros únicamente uno en particular:
+
+* Método de *IQR* o del *Rango intercuartilico*
+
+#### Método IQR
+
+Conceptualmente, se determina que un valor es un outlier para una determinada variable, cuando el mismo se encuentra por encima o por debajo de ciertos límites, determinados por el rango intercuartílico o IQR. Estos límites son:
+
+$\left[(Q1 - 1.5 IQR) - (Q3 + 1.5 IQR)\right]$
+
+Por eso, calculamos los rangos intercuartílicos y los Q1 y Q3 para cada variable numérica del dataset, y calculamos estos límites para cada una:
 
 
+```{r}
+# Calculo el primer cuantil de cada variable y lo guardo en un df
+Q1 <- as.data.frame(apply(select_if(data, is.numeric), 2, quantile, probs = 0.25))
+
+# Cambio los nombres y agrego una variable
+Q1$variable <- rownames(Q1)
+rownames(Q1) <- c(1:nrow(Q1))
+names(Q1)[1] <- 'quantile_25'
+
+# Calculo el tercer cuartil de cada variable y lo guardo en un df
+Q3 <- as.data.frame(apply(select_if(data, is.numeric), 2, quantile, probs = 0.75))
+Q3$variable <- rownames(Q3)
+rownames(Q3) <- c(1:nrow(Q3))
+names(Q3)[1] <- 'quantile_75'
+
+# Unifico ambos df
+quantiles_df <- left_join(Q1,Q3, by = 'variable')
+# Calculo el rango intercuartilico
+quantiles_df$IQR <- quantiles_df$quantile_75 - quantiles_df$quantile_25
+```
+
+# Modelado
+
+Habiendo analizado los datos y luego de hacer algunas limpiezas "higiénicas", procedemos a la etapa de modelado.
+Se procederá a aplicar una serie de técnicas y modelos para:
+
+* Obtener una predicción aceptable que sirva para determinar con un cierto grado de certeza la probabilidad de que un usuario/ cliente haga churn en el futuro
+* Seleccionar variables más importantes para el modelo
+* Determinar las métricas de performance más adecuadas
+
+Para poder hacer esto, lo primero que debemos hacer es separar los datos en un conjunto de *entrenamiento* y otro de *validación*.
+Esto se hace para poder simular datos **nuevos** sobre los que probar cualquier tipo de transformación que se haga sobre los datos. Básicamente lo que buscamos con esta separación es mantener un conjunto de datos sobre el cual haremos modificaciones y transformaciones o creando nuevas variables y con el cual se van a entrenar los modelos y otro conjunto para testear que todo lo hecho efectivamente ayude a mejorar la predicción.
+
+```{r}
+# Seteo una semilla para recrear las distintas pruebas
+set.seed(999)    
+# Selecciono los indices de entrenamiento
+inTraining <- createDataPartition(data$TARGET, p = .75, list = FALSE)
+
+# Separo los dos conjuntos de datos
+train_data <- data[inTraining, ]
+validation_data <- data[-inTraining, ]         
+
+# Verifico que ambos conjuntos estén balanceados
+print('Distribucion del target en el conjunto de entrenamiento')
+prop.table(table(train_data$TARGET))
+print('Distribucion del target en el conjunto de validacion')
+prop.table(table(validation_data$TARGET))
+```
+
+Con ambos conjuntos, procedemos a realizar los modelados, manteniendo siempre el conjunto de validación sin ninguna alteración, es decir, solamente lo consultamos para verificar eficiencia del modelo, no para entrenar ni ninguna otra operación.
+
+### Modelo Benchmark
+
+Lo primero que decidimos hacer es tener una referencia de lo que podemos llegar a esperar con los datos en el estado más crudo, sin ningún tipo de tratamiento ni optimización. Por eso elegimos correr un modelo sencillo como un árbol de decisión para ver cómo performa. Esta será nuestra medida de comparación y sobre la cuál iremos construyendo hasta alcanzar mejores resultados.
+
+
+```{r}
+# Entrenamos el modelo Arbol
+
+fitControl <- trainControl(method = 'cv', 
+                           number = 5,
+                           classProbs = TRUE,
+                           summaryFunction = twoClassSummary)
+
+rpartFit <- train(TARGET ~ .,data = train_data, 
+                  method = 'rpart', 
+                  trControl = fitControl,
+                  metric = 'ROC')
+rpartFit
+
+```
+
+Evaluamos el modelo en el conjunto de validación:
+
+```{r}
+pred <- predict(rpartFit,validation_data, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data$TARGET
+
+twoClassSummary(pred, lev = levels(pred$obs))
+```
+
+```{r, fig.width = 10, fig.height = 7}
+pred <- predict(rpartFit,validation_data, type = 'prob')[,2]
+pred2 <- prediction(pred, validation_data$TARGET)
+perf <- performance(pred2,"tpr","fpr")
+
+# Graficamos la curva ROC
+plot(perf, main="Curva ROC", colorize=T)
+```
+
+Vemos la importancia de las variables:
+
+```{r, fig.width = 10, fig.height = 7}
+plot(varImp(rpartFit), top = 30, main = 'Feature Importance')
+```
+
+Las conclusiones más interesantes que sacamos de este primer modelo sin ningún tipo de ingeniería de atributos son:
+
+* Training AUC de 0.78 y Validation AUC = 0.8, lo que representa un modelo bastante bueno. 
+* Las variables más importantes para la predicción son las que se muestran en el gráfico de arriba. Se entiende que se están separando las clases utilizando unas 30 variables aproximadamente. Las demás tienen poca importancia predictiva.
+
+Es necesario aclarar que optamos por tomar como medida de performance el *área bajo la curva ROC o AUC*. Esto es así ya que es una medida que, a diferencia de otras como el *accuracy* o *recall* o la *matriz de confusión*, es independiente del punto de corte que se elija. Con esto nos referimos a que no toma en consideración un valor umbral determinado para decidir si un elemento pertenece a una clase o a otra. Esto es deseable ya que nos permite entender de forma más genérica la forma en la que está performando el modelo.
+
+
+```{r}
+# Transformación logarítmica de los datos
+
+data_set_log <- data
+data_set_log <- log_function(data_set_log, 'TARGET')  # Función definida que aplica la transformación logarítmica sobre los datos numéricos
+
+set.seed(999)                                         # Seteo una semilla para recrear las distintas pruebas
+
+holdout_index  <- sample(c(1:nrow(data_set_log)), round(nrow(data_set_log)*0.2))  # Aproximadamente un 20% de las obs.
+
+validation_data_log <- data_set_log[holdout_index,]   # Defino el conjunto de validación
+train_data_log      <- data_set_log[-holdout_index,]  # Defino el conjunto de entrenamiento
+
+# Entrenamos el modelo Arbol
+arbol.churn <- rpart(TARGET ~ .,method="class", data = train_data_log)
+
+# Detalles del ajuste:
+printcp(arbol.churn)
+
+# Feature importance
+arbol.churn$variable.importance
+```
+
+```{r}
+# Evaluamos las predicciones
+
+pred.acp = predict(arbol.churn,type='class')
+table(pred.acp,train_data_log$TARGET)
+table(pred.acp,train_data_log$TARGET)/length(train_data_log$TARGET)*100
+```
+
+Intuimos que este modelo no performa bien por varios motivos, uno de los principales es que tiene demasiadas variables muy cercanas a 0 con muy poca variabilidad, incluso con una transformación logarítmica, muchas variables tienen el 75% de sus datos en un valor de 0.
+
+```{r}
+# Ejemplos de distribución muy agrupada en cero
+# Variables saldo_medio_var12_hace3, saldo_var1 y saldo_var13_medio
+
+print(quantile(data_set_log$saldo_medio_var12_hace3));
+print(quantile(data_set_log$saldo_var1));
+print(quantile(data_set_log$saldo_var13_medio))
+```
+
+Como medida adicional, normalizamos las variables, llevándolos a tener una media de cero y una desviación de uno.
+
+```{r}
+# Escalo variables
+preproces1 <- preProcess(train_data_log, method = c('center','scale'))
+
+train_data_log <- predict(preproces1, train_data_log)
+validation_data_log <- predict(preproces1, validation_data_log)
+
+# Entrenamos el modelo Arbol
+arbol.churn <- rpart(TARGET ~ .,method="class", data = train_data_log)
+
+# Detalles del ajuste:
+printcp(arbol.churn)
+
+# Feature importance
+arbol.churn$variable.importance
+```
+
+Evidentemente el modelo no tiene potencia predictiva y el exceso de variables seguramente está introduciendo variables redundantes. 
+Por ejemplo, al normalizar, nos dimos cuenta que algunas variables tienen varianza cero! Osea que son prácticamente invariables y constantes, por lo que no están aportando ningún tipo de información valiosa.
+
+```{r}
+# Variables con varianza cero
+# Creo lista de varianzas para cada variable
+
+variance_df <- as.data.frame(sapply(select_if(data, is.numeric), var))
+variance_df$variable <- rownames(variance_df)
+rownames(variance_df) <- c(1:nrow(variance_df))
+names(variance_df)[1] <- 'variance'
+
+# Me quedo con las variables que tengan menos de 0.001 de varianza (prácticamente 0)
+
+variables_low_variance <- c(variance_df %>% filter(variance < 0.1) %>% select(variable))
+print(variables_low_variance)
+# Elimino el df anterior
+variance_df <- NULL
+```
+
+A priori, estas variables podemos eliminarlas con seguridad ya que no marcan ningún tipo de diferencia entre los grupos de *churn* y *no churn*. Es el equivalente a dejar una variable de un valor constante. Las removemos y volvemos a evaluar el modelo para ver si cambia en algo la performance.
+
+```{r}
+# Quito las columnas que no tienen varianza significativa
+
+train_data <- train_data[,which((names(train_data) %in% variables_low_variance) == FALSE)]
+validation_data <- validation_data[,which((names(validation_data) %in% variables_low_variance) == FALSE)]
+
+# Reentrenamos el modelo y evaluamos
+fitControl <- trainControl(method = 'cv', 
+                           number = 5,
+                           classProbs = TRUE,
+                           summaryFunction = twoClassSummary)
+
+rpartFit <- train(TARGET ~ .,data = train_data, 
+                  method = 'rpart', 
+                  trControl = fitControl,
+                  metric = 'ROC')
+rpartFit
+rpartFit$results[which.max(rpartFit$results$ROC),]
+
+```
+
+```{r}
+trellis.par.set(caretTheme())
+plot(rpartFit)  
+```
+
+Por esto decidimos empezar a utilizar algunas herramientas de selección de variables 
+
+* Regresión logística regularizada: Regresión Lasso
+* Random Forest
+* Correlación entre variables
+
+Esas son algunas de las que existen. La idea no es probar todas sino conseguir que el modelo performe bien y eliminar las variables que realmente no sumen información útil al modelo.
+
+
+
+# Regresión logística
+
+Aplicamos un sencillo modelo logit para observar las relevancias de las variables
