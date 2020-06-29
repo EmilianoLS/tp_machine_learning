@@ -11,8 +11,8 @@ output:
 #  busco librerias a usar y asigno la ruta en github 
 rm(list = ls())
  
-setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
-
+#setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
+setwd('C:/Users/tutif/Desktop/emi/tp_machine_learning')
 source('functions_R.R')
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
 
@@ -142,7 +142,16 @@ Evidentemente la variable se encuentra desbalanceada, con un 90% de los usuarios
 
 Sin embargo, no es un desbalanceo tal que implique (por el momento) tomar alguna medida de rebalanceo como *undersampling* u *oversampling*.
 
-# REPLICAR EL ANALISIS QUE SE HIZO EN PYTHON
+# Análisis de variables desconocidas
+
+```{r}
+plot1 <- data %>% ggplot(aes(x = var21, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la var21 según el target')
+plot2 <- data %>% ggplot(aes(x = var36, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la var38 según el target')
+plot3 <- data %>% ggplot(aes(x = var38, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la var38 según el target')
+
+grid.arrange(plot1,plot2,plot3,ncols = 1)
+```
+
 
 # Data Cleaning
 
