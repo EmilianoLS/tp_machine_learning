@@ -123,7 +123,7 @@ Evidentemente existen valores atípicos en al menos las edades más bajas, ya qu
 #### Distribución de la edad por grupo de churn/no churn
 
 ```{r}
-ggplot(data) + geom_histogram(aes(x = age, color = TARGET), bins = 100) + ggtitle('Distribución de la edad según el target')
+data %>% ggplot(aes(x = age, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la edad según el target')
 ```
 
 #### Proporción de usuarios
@@ -278,7 +278,8 @@ pred <- predict(rpartFit,validation_data, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
 pred$obs <- validation_data$TARGET
 
-twoClassSummary(pred, lev = levels(pred$obs))
+test_results_benchmark <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_benchmark
 ```
 
 ```{r, fig.width = 10, fig.height = 7}
@@ -296,46 +297,127 @@ Vemos la importancia de las variables:
 plot(varImp(rpartFit), top = 30, main = 'Feature Importance')
 ```
 
+```{r,fig.width = 10, fig.height = 7}
+# Ploteamos el árbol
+rpart.plot(rpartFit$finalModel)
+```
+
+
+
 Las conclusiones más interesantes que sacamos de este primer modelo sin ningún tipo de ingeniería de atributos son:
 
-* Training AUC de 0.78 y Validation AUC = 0.8, lo que representa un modelo bastante bueno. 
-* Las variables más importantes para la predicción son las que se muestran en el gráfico de arriba. Se entiende que se están separando las clases utilizando unas 30 variables aproximadamente. Las demás tienen poca importancia predictiva.
+* Training AUC de 0.72 y Validation AUC = 0.75, lo que representa un modelo respetable, pensando que solamente hicimos un árbol. 
+* Las variables más importantes para la predicción son las que se muestran en el gráfico de arriba. Se entiende que se están separando las clases utilizando unas 30 variables aproximadamente. Las demás tienen poca importancia predictiva. Se observa que ID queda prácticamente sin importancia. Se puede suponer que todo lo que quede por debajo de ID es "poco importante", porque la ID no debería ser una variable relacionada con la target
 
 Es necesario aclarar que optamos por tomar como medida de performance el *área bajo la curva ROC o AUC*. Esto es así ya que es una medida que, a diferencia de otras como el *accuracy* o *recall* o la *matriz de confusión*, es independiente del punto de corte que se elija. Con esto nos referimos a que no toma en consideración un valor umbral determinado para decidir si un elemento pertenece a una clase o a otra. Esto es deseable ya que nos permite entender de forma más genérica la forma en la que está performando el modelo.
 
+El principal objetivo es reducir la dimencionalidad del dataframe. Para esto combinaremos una serie de modelos que determinen la importancia de los atributos, y utilizaremos la combinación de esos resultados para determinar cuáles son las variables más importantes.
+
+Antes de eso, sin embargo, haremos un poco de feature engineering sobre las variables. Primeramente, haremos tres pruebas:
+
+* Una transformación *logarítmica* sobre el conjunto de datos 
+* Una *normalización* sobre el conjunto de datos
+* La combinación de las dos anteriores
+
+Todas las pruebas se evaluarán sobre el conjunto de validación luego de entrenarse los modelos, para verificar si alguna de ellas mejora la performance sobre el modelo benchmark.
+El motivo para tales transformaciones, especialmente la logarítmica, es porque muchas de las variables se encuentran muy concentradas en valores pequeños mientras que los valores más grandes tienen pocos registros. Esto significa que las variables no siguen una distribución normal, y una transfomación logarítmica puede ayudar a normalizar la distribución.
+
+Si bien el modelo de árboles es bastante robusto frente a distribuciones de este estilo, al igual que a dataframes no normalizados, vale la pena intentar hacer las transformaciones.
 
 ```{r}
 # Transformación logarítmica de los datos
 
-data_set_log <- data
-data_set_log <- log_function(data_set_log, 'TARGET')  # Función definida que aplica la transformación logarítmica sobre los datos numéricos
+#data_set_log <- data
+train_data_log <- log_function(train_data, 'TARGET')  # Función definida que aplica la transformación logarítmica sobre los datos numéricos
+validation_data_log <- log_function(validation_data, 'TARGET')
 
-set.seed(999)                                         # Seteo una semilla para recrear las distintas pruebas
 
-holdout_index  <- sample(c(1:nrow(data_set_log)), round(nrow(data_set_log)*0.2))  # Aproximadamente un 20% de las obs.
+# Entrenamos el modelo Arbol con transformación logarítmica
 
-validation_data_log <- data_set_log[holdout_index,]   # Defino el conjunto de validación
-train_data_log      <- data_set_log[-holdout_index,]  # Defino el conjunto de entrenamiento
-
-# Entrenamos el modelo Arbol
-arbol.churn <- rpart(TARGET ~ .,method="class", data = train_data_log)
-
-# Detalles del ajuste:
-printcp(arbol.churn)
-
-# Feature importance
-arbol.churn$variable.importance
+rpartFit_log <- train(TARGET ~ .,data = train_data_log, 
+                  method = 'rpart', 
+                  trControl = fitControl,
+                  metric = 'ROC')
+rpartFit_log
 ```
 
 ```{r}
 # Evaluamos las predicciones
 
-pred.acp = predict(arbol.churn,type='class')
-table(pred.acp,train_data_log$TARGET)
-table(pred.acp,train_data_log$TARGET)/length(train_data_log$TARGET)*100
+pred <- predict(rpartFit_log,validation_data_log, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data_log$TARGET
+
+test_results_log <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_log
 ```
 
-Intuimos que este modelo no performa bien por varios motivos, uno de los principales es que tiene demasiadas variables muy cercanas a 0 con muy poca variabilidad, incluso con una transformación logarítmica, muchas variables tienen el 75% de sus datos en un valor de 0.
+
+```{r}
+# Normalizo los datos
+preprocess_norm <- preProcess(train_data, norm = c('center','scale'))
+train_data_norm <- predict(preprocess_norm, train_data)
+validation_data_norm <- predict(preprocess_norm, validation_data)
+
+rpartFit_norm <- train(TARGET ~ .,data = train_data_norm, 
+                  method = 'rpart', 
+                  trControl = fitControl,
+                  metric = 'ROC')
+rpartFit_norm
+```
+
+```{r}
+
+pred <- predict(rpartFit_norm,validation_data_norm, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred_1 <- predict(rpartFit_norm,validation_data_norm)
+pred$pred <- pred_1
+pred$obs <- validation_data_norm$TARGET
+
+
+test_results_norm <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_norm
+```
+
+```{r}
+# Combinamos ambos métodos
+
+preprocess_norm_log <- preProcess(train_data_log, norm = c('center','scale'))
+train_data_log_norm <- predict(preprocess_norm_log, train_data_log)
+validation_data_log_norm <- predict(preprocess_norm_log, validation_data_log)
+
+rpartFit_log_norm <- train(TARGET ~ .,data = train_data_log_norm, 
+                  method = 'rpart', 
+                  trControl = fitControl,
+                  metric = 'ROC')
+rpartFit_log_norm
+```
+
+```{r}
+# Predecimos sobre datos de validación
+pred <- predict(rpartFit_log_norm,validation_data_log_norm, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data_log_norm$TARGET
+
+test_results_log_norm <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_log_norm
+
+```
+
+Se logró una mejora sustancial al normalizar los datos, obteniendo unos buenos resultados tanto de training como de validación, por lo que se mantendrán los valores normalizados (esto es bueno porque otros modelos requieren esta transformación).
+
+```{r}
+# Mejores resultados de cada modelo
+modelos <- c('Benchmark','Transformación log','Normalizado','Ambas transformaciones')
+resultados_training <- c(max(rpartFit$results$ROC),max(rpartFit_log$results$ROC),max(rpartFit_norm$results$ROC),max(rpartFit_log_norm$results$ROC))
+resultados_testing <- c(as.numeric(test_results_benchmark[1]), as.numeric(test_results_log[1]), as.numeric(test_results_norm[1]), as.numeric(test_results_log_norm[1]))
+
+data.frame(modelos,resultados_training,resultados_testing)
+
+```
+
+
+Sin embargo, cuando normalizamos notamos que tiene demasiadas variables muy cercanas a 0 con muy poca variabilidad, incluso con una transformación logarítmica, muchas variables tienen el 75% de sus datos en un valor de 0.
 
 ```{r}
 # Ejemplos de distribución muy agrupada en cero

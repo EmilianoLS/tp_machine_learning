@@ -17,6 +17,7 @@ library(caret)
 # Librerias para modelar
 library(rpart)
 library(rpart.plot)
+library(ROCR)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # DATA CLEANING
