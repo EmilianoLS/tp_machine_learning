@@ -11,8 +11,8 @@ output:
 #  busco librerias a usar y asigno la ruta en github 
 rm(list = ls())
  
-#setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
-setwd('C:/Users/tutif/Desktop/emi/tp_machine_learning')
+setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
+#setwd('C:/Users/tutif/Desktop/emi/tp_machine_learning')
 source('functions_R.R')
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
 
@@ -144,13 +144,40 @@ Sin embargo, no es un desbalanceo tal que implique (por el momento) tomar alguna
 
 # Análisis de variables desconocidas
 
-```{r}
+Como dijimos antes, hay algunas variables que no se dicen mucho sobre lo que significan. Por eso analizamos la distribución de las mismas, para ver si así entendemos mejor qué tipo de dato es y lo que pretende describir.
+
+```{r,fig.width = 10, fig.height = 7}
 plot1 <- data %>% ggplot(aes(x = var21, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la var21 según el target')
-plot2 <- data %>% ggplot(aes(x = var36, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la var38 según el target')
+plot2 <- data %>% ggplot(aes(x = var36, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la var36 según el target')
 plot3 <- data %>% ggplot(aes(x = var38, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la var38 según el target')
 
-grid.arrange(plot1,plot2,plot3,ncols = 1)
+ggarrange(plot1,plot2,plot3,ncol = 1)
 ```
+
+```{r}
+# Miro los quantiles para ver qué tanto varían los datos
+
+quantile(data$var21)
+quantile(data$var36)
+quantile(data$var38)
+
+# Var36 y 38 parecen mostrar datos más distribuidos, pero var21 pareciera solamente tener dos valores: 0 y 30000
+```
+
+```{r,fig.width = 10, fig.height = 7}
+# Distribución de var21 para valores superiores a 0
+data$temp <- if_else(data$var21 > 0, 'mayor_0','igual_0')
+plot1 <- filter(data,var21 > 0) %>% ggplot(aes(x = var21, fill = TARGET)) + geom_histogram(color="#e9ecef", alpha=0.4, position = 'identity', bins = 50) + ggtitle('Distribución de la var21 según el target')
+plot2 <- ggplot(data, aes(temp)) + geom_bar() + ggtitle('Proporción de var21 mayor a 0')
+
+ggarrange(plot1,plot2, ncol = 1)
+data$temp <- NULL
+```
+
+Vemos que la proporción de datos para la variable var21 con valor mayor a 0 es muy baja (aproximadamente un 1%). Pensabamos que tal vez esta variable solo tomaba dos valores posibles, pero vemos que existen algunos valores por encima de 0 distintos de 30000 aunque no son muchos.
+
+Notamos también que en líneas generales ninguna de las variables separa muy bien los grupos. 
+También son variables que toman valores muy altos, muy extremos. Por ejemplo para el caso de la var21, casi que pueden considerarse como *outliers*.
 
 
 # Data Cleaning
@@ -188,45 +215,8 @@ dim(data)
 
 Arriba se encuentran las nuevas dimensiones del dataset. Lógicamente, el resultado es el mismo en cuanto a columnas, mientras que en cuanto a registros, disminuyó en 56, esto corresponde a los valores que acabamos de retirar.
 
-Con esto, cubrimos todo lo que podía hacerse respecto de los valores *NAs* ya que no hay más columnas con éstos. Por esto pasamos a estudiar los valores extremos o *outliers*.
+Con esto, cubrimos todo lo que podía hacerse respecto de los valores *NAs* ya que no hay más columnas con éstos. 
 
-### Handling Outliers
-
-Comúnmente se considera Outlier a todo registro que esté "fuera de lo común", todo registro que resalte del resto. Esto no es algo muy definido, ya que no existe una única regla para determinar qué es lo común. 
-
-Por eso existen diversas formas para detectar estos valores extremos que no parecieran seguir el mismo comportamiento que el resto, nosotros únicamente uno en particular:
-
-* Método de *IQR* o del *Rango intercuartilico*
-
-#### Método IQR
-
-Conceptualmente, se determina que un valor es un outlier para una determinada variable, cuando el mismo se encuentra por encima o por debajo de ciertos límites, determinados por el rango intercuartílico o IQR. Estos límites son:
-
-$\left[(Q1 - 1.5 IQR) - (Q3 + 1.5 IQR)\right]$
-
-Por eso, calculamos los rangos intercuartílicos y los Q1 y Q3 para cada variable numérica del dataset, y calculamos estos límites para cada una:
-
-
-```{r}
-# Calculo el primer cuantil de cada variable y lo guardo en un df
-Q1 <- as.data.frame(apply(select_if(data, is.numeric), 2, quantile, probs = 0.25))
-
-# Cambio los nombres y agrego una variable
-Q1$variable <- rownames(Q1)
-rownames(Q1) <- c(1:nrow(Q1))
-names(Q1)[1] <- 'quantile_25'
-
-# Calculo el tercer cuartil de cada variable y lo guardo en un df
-Q3 <- as.data.frame(apply(select_if(data, is.numeric), 2, quantile, probs = 0.75))
-Q3$variable <- rownames(Q3)
-rownames(Q3) <- c(1:nrow(Q3))
-names(Q3)[1] <- 'quantile_75'
-
-# Unifico ambos df
-quantiles_df <- left_join(Q1,Q3, by = 'variable')
-# Calculo el rango intercuartilico
-quantiles_df$IQR <- quantiles_df$quantile_75 - quantiles_df$quantile_25
-```
 
 # Modelado
 
@@ -425,83 +415,69 @@ data.frame(modelos,resultados_training,resultados_testing)
 
 ```
 
-
-Sin embargo, cuando normalizamos notamos que tiene demasiadas variables muy cercanas a 0 con muy poca variabilidad, incluso con una transformación logarítmica, muchas variables tienen el 75% de sus datos en un valor de 0.
-
 ```{r}
-# Ejemplos de distribución muy agrupada en cero
-# Variables saldo_medio_var12_hace3, saldo_var1 y saldo_var13_medio
+# Elimino los datasets que no voy a usar
 
-print(quantile(data_set_log$saldo_medio_var12_hace3));
-print(quantile(data_set_log$saldo_var1));
-print(quantile(data_set_log$saldo_var13_medio))
+train_data_log <- NULL
+train_data_log_norm <- NULL
+validation_data_log <- NULL
+validation_data_log_norm <- NULL
 ```
 
-Como medida adicional, normalizamos las variables, llevándolos a tener una media de cero y una desviación de uno.
+Observamos que el hecho de normalizar los datos es la mejor opción ya que obtenemos un mejor resultado en testing, con una mejora de casi el 5% sobre el modelo benchmark.
+
+Antes de avanzar con la selección de atributos, notamos que al momento de normalizar se advirtió que muchas variables tenían varianza cercana a cero, esto signiica que son prácticamente constantes, por lo que considerarlas para un modelo es irrelevante ya que no tienen relación alguna con la variable target.
+Para esto usamos la funcion *nearZeroVar* de *CARET* que toma dos indicadores para determinar si una variable tiene varianza igual o cercana a cero:
+
+* La frecuencia del valor más común sobre la frecuencia de segundo valor más común (*frequency ratio*). Si la variable se comporta adecuadamente, el ratio deberá ser aproximadamente uno, y será muy grande para casos muy desbalanceados
+* El porcentaje de valores únicos: Número de valores únicos entre el total de registros. Debería tender a cero en la medida que se incrementa la granularidad.
 
 ```{r}
-# Escalo variables
-preproces1 <- preProcess(train_data_log, method = c('center','scale'))
+# Filtramos variables con varianza cero o cercana a cero
+dim(data)
+nzv <- nearZeroVar(data)
+data_filtered <- data[, -nzv]
+dim(data_filtered)
 
-train_data_log <- predict(preproces1, train_data_log)
-validation_data_log <- predict(preproces1, validation_data_log)
-
-# Entrenamos el modelo Arbol
-arbol.churn <- rpart(TARGET ~ .,method="class", data = train_data_log)
-
-# Detalles del ajuste:
-printcp(arbol.churn)
-
-# Feature importance
-arbol.churn$variable.importance
 ```
 
-Evidentemente el modelo no tiene potencia predictiva y el exceso de variables seguramente está introduciendo variables redundantes. 
-Por ejemplo, al normalizar, nos dimos cuenta que algunas variables tienen varianza cero! Osea que son prácticamente invariables y constantes, por lo que no están aportando ningún tipo de información valiosa.
+Volvemos a correr el modelo normalizando las variables que quedan
 
 ```{r}
-# Variables con varianza cero
-# Creo lista de varianzas para cada variable
+# Normalizo los datos
+train_data_norm <- train_data_norm[,-nzv]
+validation_data_norm <- validation_data_norm[,-nzv]
 
-variance_df <- as.data.frame(sapply(select_if(data, is.numeric), var))
-variance_df$variable <- rownames(variance_df)
-rownames(variance_df) <- c(1:nrow(variance_df))
-names(variance_df)[1] <- 'variance'
+#preprocess_norm <- preProcess(train_data_filtered, norm = c('center','scale'))
+#train_data_norm <- predict(preprocess_norm, train_data_filtered)
+#validation_data_norm <- predict(preprocess_norm, validation_data_filtered)
 
-# Me quedo con las variables que tengan menos de 0.001 de varianza (prácticamente 0)
-
-variables_low_variance <- c(variance_df %>% filter(variance < 0.1) %>% select(variable))
-print(variables_low_variance)
-# Elimino el df anterior
-variance_df <- NULL
-```
-
-A priori, estas variables podemos eliminarlas con seguridad ya que no marcan ningún tipo de diferencia entre los grupos de *churn* y *no churn*. Es el equivalente a dejar una variable de un valor constante. Las removemos y volvemos a evaluar el modelo para ver si cambia en algo la performance.
-
-```{r}
-# Quito las columnas que no tienen varianza significativa
-
-train_data <- train_data[,which((names(train_data) %in% variables_low_variance) == FALSE)]
-validation_data <- validation_data[,which((names(validation_data) %in% variables_low_variance) == FALSE)]
-
-# Reentrenamos el modelo y evaluamos
-fitControl <- trainControl(method = 'cv', 
-                           number = 5,
-                           classProbs = TRUE,
-                           summaryFunction = twoClassSummary)
-
-rpartFit <- train(TARGET ~ .,data = train_data, 
+rpartFit_norm <- train(TARGET ~ .,data = train_data_norm, 
                   method = 'rpart', 
                   trControl = fitControl,
                   metric = 'ROC')
-rpartFit
-rpartFit$results[which.max(rpartFit$results$ROC),]
+rpartFit_norm
+```
+```{r}
+# ROC y AUC
+pred_t = predict(rpartFit_norm, newdata = validation_data_norm ,type='prob')[,2]
+pred2 <- prediction(pred_t, validation_data_norm$TARGET)
+perf <- performance(pred2,"tpr","fpr")
+# Graficamos la curva ROC
+plot(perf, main="Curva ROC", colorize=T)
 
+auc <- performance(pred2, measure = "auc")
+auc@y.values[[1]]
 ```
 
 ```{r}
-trellis.par.set(caretTheme())
-plot(rpartFit)  
+# Predecimos sobre datos de validation_data_norm
+pred <- predict(rpartFit_norm,validation_data_norm, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data_norm$TARGET
+
+test_results_norm <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_norm
 ```
 
 Por esto decidimos empezar a utilizar algunas herramientas de selección de variables 
