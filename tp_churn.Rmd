@@ -465,13 +465,10 @@ pred2 <- prediction(pred_t, validation_data_norm$TARGET)
 perf <- performance(pred2,"tpr","fpr")
 # Graficamos la curva ROC
 plot(perf, main="Curva ROC", colorize=T)
-
-auc <- performance(pred2, measure = "auc")
-auc@y.values[[1]]
 ```
 
 ```{r}
-# Predecimos sobre datos de validation_data_norm
+# AUC
 pred <- predict(rpartFit_norm,validation_data_norm, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
 pred$obs <- validation_data_norm$TARGET
@@ -479,6 +476,22 @@ pred$obs <- validation_data_norm$TARGET
 test_results_norm <- twoClassSummary(pred, lev = levels(pred$obs))
 test_results_norm
 ```
+
+Vemos que bajo! Evidentemente, como se suele recomendar, no es lo mejor eliminar variables. Puede ocurrir que, incluso con varianza cercana a cero, algunas variables sean importantes para determinar el target. La función nearZeroVar elimina tanto las variables con varianza = 0 como aquellas que tienen varianza cercana a cero. Veamos cuántas tienen varianza cercana a cero y cuántas tienen varianza cero:
+
+```{r}
+# Calculo cantidad de variables con cero y casi cero varianza
+
+nzv_desc <- nearZeroVar(data, saveMetrics = TRUE)
+
+columns <- c('Cantidad de variables')
+varianza_cero <- nrow(nzv_desc[nzv_desc$zeroVar == TRUE, ])
+nz_varianza <- nrow(nzv_desc[nzv_desc$nzv == TRUE, ])
+
+data.frame(columns,varianza_cero, nz_varianza)
+```
+
+
 
 Por esto decidimos empezar a utilizar algunas herramientas de selección de variables 
 
