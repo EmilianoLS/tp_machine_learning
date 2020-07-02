@@ -535,15 +535,15 @@ preprocess_norm <- preProcess(train_data_filtered, norm = c('center','scale'))
 train_data_norm <- predict(preprocess_norm, train_data_filtered)
 validation_data_norm <- predict(preprocess_norm, validation_data_filtered)
 
-rpartFit_norm_filtered <- train(TARGET ~ .,data = train_data_norm, 
+rpartFit_norm_final <- train(TARGET ~ .,data = train_data_norm, 
                                 method = 'rpart', 
                                 trControl = fitControl,
                                 metric = 'ROC')
-rpartFit_norm_filtered
+rpartFit_norm_final
 ```
 ```{r}
 # AUC
-pred <- predict(rpartFit_norm_filtered,validation_data_norm, type = 'prob')
+pred <- predict(rpartFit_norm_final,validation_data_norm, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
 pred$obs <- validation_data_norm$TARGET
 
@@ -566,8 +566,13 @@ Esas son algunas de las que existen. La idea no es probar todas sino conseguir q
 ```{r}
 # Recordemos que la libreria glmnet consume matrices, no dataframes
 
+train_data_norm$TARGET <- if_else(train_data_norm$TARGET == 'churn',1,0)
+validation_data_norm$TARGET <- if_else(validation_data_norm$TARGET == 'churn',1,0)
+
 matrix_train = model.matrix( ~ .-1, train_data_norm)
 matrix_test = model.matrix(~.-1, validation_data_norm)
+
+train_col <- setdiff(names(train_data_norm),'TARGET')
 
 x_train <- as.matrix(matrix_train[,-])
 y_train = as.matrix(matrix_train[,71]) # 0/1 flag.
