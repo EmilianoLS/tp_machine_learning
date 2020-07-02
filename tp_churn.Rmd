@@ -564,6 +564,16 @@ Esas son algunas de las que existen. La idea no es probar todas sino conseguir q
 # Regresión logística con regularización lasso
 
 ```{r}
+# Recordemos que la libreria glmnet consume matrices, no dataframes
+
+matrix_train = model.matrix( ~ .-1, train_data_norm)
+matrix_test = model.matrix(~.-1, validation_data_norm)
+
+x_train <- as.matrix(matrix_train[,-])
+y_train = as.matrix(matrix_train[,71]) # 0/1 flag.
+
+x_test <- as.matrix(matrix_test[,-71])
+y_test<- as.matrix(matrix_test[,71])
 
 
 
