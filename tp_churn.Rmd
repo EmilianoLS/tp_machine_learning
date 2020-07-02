@@ -10,8 +10,9 @@ output:
 ```{r message=FALSE, warning=FALSE}
 #  busco librerias a usar y asigno la ruta en github 
 rm(list = ls())
- 
-setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
+
+setwd('D:/DS_Projects/tp_machine_learning')
+#setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
 #setwd('C:/Users/tutif/Desktop/emi/tp_machine_learning')
 source('functions_R.R')
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
@@ -445,23 +446,23 @@ Volvemos a correr el modelo normalizando las variables que quedan
 
 ```{r}
 # Normalizo los datos
-train_data_norm <- train_data_norm[,-nzv]
-validation_data_norm <- validation_data_norm[,-nzv]
+train_data_norm_filtered <- train_data_norm[,-nzv]
+validation_data_norm_filtered <- validation_data_norm[,-nzv]
 
 #preprocess_norm <- preProcess(train_data_filtered, norm = c('center','scale'))
 #train_data_norm <- predict(preprocess_norm, train_data_filtered)
 #validation_data_norm <- predict(preprocess_norm, validation_data_filtered)
 
-rpartFit_norm <- train(TARGET ~ .,data = train_data_norm, 
-                  method = 'rpart', 
-                  trControl = fitControl,
-                  metric = 'ROC')
-rpartFit_norm
+rpartFit_norm_filtered <- train(TARGET ~ .,data = train_data_norm_filtered, 
+                                method = 'rpart', 
+                                trControl = fitControl,
+                                metric = 'ROC')
+rpartFit_norm_filtered
 ```
 ```{r}
 # ROC y AUC
-pred_t = predict(rpartFit_norm, newdata = validation_data_norm ,type='prob')[,2]
-pred2 <- prediction(pred_t, validation_data_norm$TARGET)
+pred_t = predict(rpartFit_norm_filtered, newdata = validation_data_norm_filtered ,type='prob')[,2]
+pred2 <- prediction(pred_t, validation_data_norm_filtered$TARGET)
 perf <- performance(pred2,"tpr","fpr")
 # Graficamos la curva ROC
 plot(perf, main="Curva ROC", colorize=T)
@@ -469,12 +470,12 @@ plot(perf, main="Curva ROC", colorize=T)
 
 ```{r}
 # AUC
-pred <- predict(rpartFit_norm,validation_data_norm, type = 'prob')
+pred <- predict(rpartFit_norm_filtered,validation_data_norm_filtered, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
-pred$obs <- validation_data_norm$TARGET
+pred$obs <- validation_data_norm_filtered$TARGET
 
-test_results_norm <- twoClassSummary(pred, lev = levels(pred$obs))
-test_results_norm
+test_results_norm_filtered <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_norm_filtered
 ```
 
 Vemos que bajo! Evidentemente, como se suele recomendar, no es lo mejor eliminar variables. Puede ocurrir que, incluso con varianza cercana a cero, algunas variables sean importantes para determinar el target. La función nearZeroVar elimina tanto las variables con varianza = 0 como aquellas que tienen varianza cercana a cero. Veamos cuántas tienen varianza cercana a cero y cuántas tienen varianza cero:
@@ -491,7 +492,66 @@ nz_varianza <- nrow(nzv_desc[nzv_desc$nzv == TRUE, ])
 data.frame(columns,varianza_cero, nz_varianza)
 ```
 
+Como se ve, no hay ninguna variable que tenga varianza cero absoluto, sino que son cercanas a cero. Puede estar ocurriendo que algunas variables que eliminamos correlacionen con la variable target por lo que al eliminarlas, estemos afectando al modelo.
 
+Veamos la importancia de las variables para el modelo normalizado con todas las variables:
+
+```{r,fig.width = 15, fig.height = 10}
+
+# Visualizo las variables relevantes
+plot(varImp(rpartFit_norm), top = 30, main = 'Feature Importance')
+
+# Guardo las variables con poca varianza
+low_variance_var <- rownames(nzv_desc[nzv_desc$nzv == TRUE,])
+# Guardo las variables importantes segun el modelo
+important_features <- as.matrix((varImp(rpartFit_log_norm)$importance))
+
+important_features[(rownames(important_features) %in% low_variance_var) & (important_features > 0),]
+
+# Me quedo con las variables importantes que tienen poca varianza
+
+important_low_variance_var <- rownames(as.matrix(important_features[(rownames(important_features) %in% low_variance_var) & (important_features > 0),]))
+
+```
+
+Sorpresa! Algunas de las variables con varianza casi cero son relevantes para el modelo. Esto explica por qué al quitarlas bajó el valor del AUC. No tienen un alto nivel de importancia, pero son relevantes evidentemente.
+
+Por última vez, intentamos correr el modelo con las variables que no tengan varianza cercana a cero, manteniendo aquellas que tengan algún nivel de importancia según el modelo *rpart*. Seguimos usando el modelo normalizado.
+
+```{r}
+# Quito las variables con baja varianza que son relevantes del total de varables con baja varianza
+nzv_filtered <- setdiff(low_variance_var,important_low_variance_var)
+```
+
+```{r}
+# Normalizo los datos
+#train_data_norm_filtered <- train_data_norm[setdiff(names(train_data_norm),nzv_filtered)]
+#validation_data_norm_filtered <- validation_data_norm[setdiff(names(validation_data_norm),nzv_filtered)]
+
+train_data_filtered <- train_data[setdiff(names(train_data), nzv_filtered)]
+validation_data_filtered <- validation_data[setdiff(names(validation_data),nzv_filtered)]
+
+preprocess_norm <- preProcess(train_data_filtered, norm = c('center','scale'))
+train_data_norm <- predict(preprocess_norm, train_data_filtered)
+validation_data_norm <- predict(preprocess_norm, validation_data_filtered)
+
+rpartFit_norm_filtered <- train(TARGET ~ .,data = train_data_norm, 
+                                method = 'rpart', 
+                                trControl = fitControl,
+                                metric = 'ROC')
+rpartFit_norm_filtered
+```
+```{r}
+# AUC
+pred <- predict(rpartFit_norm_filtered,validation_data_norm, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data_norm$TARGET
+
+test_results_norm_filtered <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_norm_filtered
+```
+
+Volvió a bajar, evidentemente nuestro criterio para seleccionar las variables en función de la varianza e importancia no fue suficiente como para mantener la performance del modelo.
 
 Por esto decidimos empezar a utilizar algunas herramientas de selección de variables 
 
@@ -501,8 +561,11 @@ Por esto decidimos empezar a utilizar algunas herramientas de selección de vari
 
 Esas son algunas de las que existen. La idea no es probar todas sino conseguir que el modelo performe bien y eliminar las variables que realmente no sumen información útil al modelo.
 
+# Regresión logística con regularización lasso
+
+```{r}
 
 
-# Regresión logística
 
-Aplicamos un sencillo modelo logit para observar las relevancias de las variables
+```
+
