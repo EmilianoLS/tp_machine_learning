@@ -18,6 +18,7 @@ library(caret)
 library(rpart)
 library(rpart.plot)
 library(ROCR)
+library(glmnet)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # DATA CLEANING

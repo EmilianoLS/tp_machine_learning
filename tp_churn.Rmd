@@ -448,7 +448,62 @@ El principal objetivo es reducir la dimensionalidad del dataframe. Para esto com
 
 Habiendo evaluado algunos modelos, vimos que no hay ninguno significativamente superior al benchmark, sin embargo, decidimos mantener el modelo normalizado, ya que mantiene la misma performance en validación que el modelo base, y tiene la ventaja de que contamos con los datos normalizado, cosa necesaria para algunos modelos que pasaremos a evaluar.
 
-Observamos que el hecho de normalizar los datos es la mejor opción ya que obtenemos un mejor resultado en testing, con una mejora de casi el 5% sobre el modelo benchmark.
+Para decidir qué atributos mantener y cuáles descartar, decidimos basarnos en una serie de modelos y herramientas que nos determinen la importancia de cada variable al momento de modelizar, y las correlaciones y variabilidades que hay en la variables predictoras.
+Combinando estos métodos, evaluando siempre contra el conjunto de validación, esperamos reducir la cantidad de atributos de forma considerable para poder usar ese "nuevo dataset" como input para modelos más avanzados (como por ejemplo SVM o NN).
+
+La primer parte que haremos será correr dos o tres modelos que, además de darnos un cierto valor de AUC y nos permtirán ver si el modelo mejora respecto al benchmark, sino que también nos van a devolver una cierta importancia asignada a cada variable. 
+
+## Feature importance
+
+### Modelo log regularizado
+
+```{r}
+# Recordemos que la libreria glmnet consume matrices, no dataframes
+
+train_data$TARGET <- as.logical.factor(if_else(train_data_norm$TARGET == 'churn',1,0))
+validation_data$TARGET <- as.logical.factor(if_else(validation_data_norm$TARGET == 'churn',1,0))
+
+matrix_train = model.matrix( ~ .-1, train_data)
+matrix_test = model.matrix(~.-1, validation_data)
+
+x_train <- as.matrix(matrix_train[,-312])
+y_train = as.matrix(matrix_train[,312]) # 0/1 flag.
+
+x_test <- as.matrix(matrix_test[,-312])
+y_test<- as.matrix(matrix_test[,312])
+
+############################################## MODELO DE REG LOG SIN REGULARIZACIÓN ###################################################
+
+lasso.sin.reg = glmnet(x = x_train , 
+                   y = y_train,
+                   family = 'binomial', 
+                   alpha = 1 , 
+                   lambda = 0, # sin regularizacion
+                   standardize = TRUE)
+
+# Predicciones en Train
+
+pred_tr = predict(lasso.sin.reg, s = 0 , newx = x_train, type = 'response')
+
+# Predicciones en Test
+
+pred = predict(lasso.sin.reg, s = 0 , newx = x_test, type = 'response')
+
+# Calculo la curva ROC en Train
+
+dev.off();
+pred2 <- prediction(pred_tr, y_train)
+perf <- performance(pred2,"tpr","fpr")
+
+# Graficamos la curva ROC
+
+plot(perf, main="Curva ROC", colorize=T)
+
+auc <- performance(pred2, measure = "auc")
+auc@y.values[[1]] 
+```
+
+
 
 Antes de avanzar con la selección de atributos, notamos que al momento de normalizar se advirtió que muchas variables tenían varianza cercana a cero, esto signiica que son prácticamente constantes, por lo que considerarlas para un modelo es irrelevante ya que no tienen relación alguna con la variable target.
 Para esto usamos la funcion *nearZeroVar* de *CARET* que toma dos indicadores para determinar si una variable tiene varianza igual o cercana a cero:
