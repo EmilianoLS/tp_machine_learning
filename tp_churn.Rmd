@@ -252,11 +252,21 @@ Con ambos conjuntos, procedemos a realizar los modelados, manteniendo siempre el
 
 ### Modelo Benchmark
 
-Lo primero que decidimos hacer es tener una referencia de lo que podemos llegar a esperar con los datos en el estado más crudo, sin ningún tipo de tratamiento ni optimización. Por eso elegimos correr un modelo sencillo como un árbol de decisión para ver cómo performa. Esta será nuestra medida de comparación y sobre la cuál iremos construyendo hasta alcanzar mejores resultados.
+Lo primero que decidimos hacer es tener una referencia de lo que podemos llegar a esperar con los datos en el estado más crudo, sin ningún tipo de tratamiento ni optimización. Por eso elegimos correr un modelo sencillo como un árbol de decisión para ver cómo performa. Esta será nuestra medida de comparación y sobre la cuál iremos construyendo hasta alcanzar mejores resultados. Luego haremos unos modelos más, aplicando ciertas transformaciones:
+
+* Transformación logarítmica
+* Normalización
+* Ambas anteriores
+
+Todas las pruebas se evaluarán sobre el conjunto de validación luego de entrenarse los modelos, para verificar si alguna de ellas mejora la performance sobre el modelo benchmark.
+El motivo para tales transformaciones, especialmente la logarítmica, es porque muchas de las variables se encuentran muy concentradas en valores pequeños mientras que los valores más grandes tienen pocos registros. Esto significa que las variables no siguen una distribución normal, y una transfomación logarítmica puede ayudar a normalizar la distribución.
+
+Si bien el modelo de árboles es bastante robusto frente a distribuciones de este estilo, al igual que a dataframes no normalizados, vale la pena intentar hacer las transformaciones.
 
 
 ```{r}
 # Entrenamos el modelo Arbol
+######################################  MODELO BENCHMARK  ######################################
 
 fitControl <- trainControl(method = 'cv', 
                            number = 5,
@@ -267,163 +277,176 @@ rpartFit <- train(TARGET ~ .,data = train_data,
                   method = 'rpart', 
                   trControl = fitControl,
                   metric = 'ROC')
-rpartFit
 
-```
+train_bechmark_result <- max(rpartFit$results$ROC)                            # Guardo resultados del entrenamiento
 
-Evaluamos el modelo en el conjunto de validación:
+# Evaluamos en Test
 
-```{r}
 pred <- predict(rpartFit,validation_data, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
 pred$obs <- validation_data$TARGET
 
 test_results_benchmark <- twoClassSummary(pred, lev = levels(pred$obs))
-test_results_benchmark
-```
+test_results_benchmark_roc <- as.numeric(test_results_benchmark[1])         # Guardo resultados de testing
 
-```{r, fig.width = 10, fig.height = 7}
-pred <- predict(rpartFit,validation_data, type = 'prob')[,2]
-pred2 <- prediction(pred, validation_data$TARGET)
-perf <- performance(pred2,"tpr","fpr")
+###########################################  MODELO LOG TRF  ######################################
 
-# Graficamos la curva ROC
-plot(perf, main="Curva ROC", colorize=T)
-```
-
-Vemos la importancia de las variables:
-
-```{r, fig.width = 10, fig.height = 7}
-plot(varImp(rpartFit), top = 30, main = 'Feature Importance')
-```
-
-```{r,fig.width = 10, fig.height = 7}
-# Ploteamos el árbol
-rpart.plot(rpartFit$finalModel)
-```
-
-
-
-Las conclusiones más interesantes que sacamos de este primer modelo sin ningún tipo de ingeniería de atributos son:
-
-* Training AUC de 0.72 y Validation AUC = 0.75, lo que representa un modelo respetable, pensando que solamente hicimos un árbol. 
-* Las variables más importantes para la predicción son las que se muestran en el gráfico de arriba. Se entiende que se están separando las clases utilizando unas 30 variables aproximadamente. Las demás tienen poca importancia predictiva. Se observa que ID queda prácticamente sin importancia. Se puede suponer que todo lo que quede por debajo de ID es "poco importante", porque la ID no debería ser una variable relacionada con la target
-
-Es necesario aclarar que optamos por tomar como medida de performance el *área bajo la curva ROC o AUC*. Esto es así ya que es una medida que, a diferencia de otras como el *accuracy* o *recall* o la *matriz de confusión*, es independiente del punto de corte que se elija. Con esto nos referimos a que no toma en consideración un valor umbral determinado para decidir si un elemento pertenece a una clase o a otra. Esto es deseable ya que nos permite entender de forma más genérica la forma en la que está performando el modelo.
-
-El principal objetivo es reducir la dimencionalidad del dataframe. Para esto combinaremos una serie de modelos que determinen la importancia de los atributos, y utilizaremos la combinación de esos resultados para determinar cuáles son las variables más importantes.
-
-Antes de eso, sin embargo, haremos un poco de feature engineering sobre las variables. Primeramente, haremos tres pruebas:
-
-* Una transformación *logarítmica* sobre el conjunto de datos 
-* Una *normalización* sobre el conjunto de datos
-* La combinación de las dos anteriores
-
-Todas las pruebas se evaluarán sobre el conjunto de validación luego de entrenarse los modelos, para verificar si alguna de ellas mejora la performance sobre el modelo benchmark.
-El motivo para tales transformaciones, especialmente la logarítmica, es porque muchas de las variables se encuentran muy concentradas en valores pequeños mientras que los valores más grandes tienen pocos registros. Esto significa que las variables no siguen una distribución normal, y una transfomación logarítmica puede ayudar a normalizar la distribución.
-
-Si bien el modelo de árboles es bastante robusto frente a distribuciones de este estilo, al igual que a dataframes no normalizados, vale la pena intentar hacer las transformaciones.
-
-```{r}
 # Transformación logarítmica de los datos
 
-#data_set_log <- data
-train_data_log <- log_function(train_data, 'TARGET')  # Función definida que aplica la transformación logarítmica sobre los datos numéricos
+
+train_data_log <- log_function(train_data, 'TARGET')      # Función definida que aplica la transformación logarítmica sobre los datos numéricos
 validation_data_log <- log_function(validation_data, 'TARGET')
 
 
-# Entrenamos el modelo Arbol con transformación logarítmica
+# Entrenamos el modelo
 
 rpartFit_log <- train(TARGET ~ .,data = train_data_log, 
                   method = 'rpart', 
                   trControl = fitControl,
                   metric = 'ROC')
-rpartFit_log
-```
+train_logtf_result <- max(rpartFit_log$results$ROC)
 
-```{r}
-# Evaluamos las predicciones
+# Evaluamos en Test
 
 pred <- predict(rpartFit_log,validation_data_log, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
 pred$obs <- validation_data_log$TARGET
 
 test_results_log <- twoClassSummary(pred, lev = levels(pred$obs))
-test_results_log
-```
+test_results_log_roc <- as.numeric(test_results_log[1])
 
+###########################################  MODELO NORMALIZADO  ######################################
 
-```{r}
-# Normalizo los datos
+# Normalizamos los datos con la función preProcess
+
 preprocess_norm <- preProcess(train_data, norm = c('center','scale'))
+
+# Aplicamos el modelo aprendido al conjunto de entrenamiento y validación
+# Guardamos en otra variable para no perder la original
+
 train_data_norm <- predict(preprocess_norm, train_data)
 validation_data_norm <- predict(preprocess_norm, validation_data)
+
+# Entrenamos el modelo
 
 rpartFit_norm <- train(TARGET ~ .,data = train_data_norm, 
                   method = 'rpart', 
                   trControl = fitControl,
                   metric = 'ROC')
-rpartFit_norm
-```
+train_norm_result <- max(rpartFit_norm$results$ROC)
 
-```{r}
+# Evaluamos en Test
 
 pred <- predict(rpartFit_norm,validation_data_norm, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
-pred_1 <- predict(rpartFit_norm,validation_data_norm)
-pred$pred <- pred_1
 pred$obs <- validation_data_norm$TARGET
 
-
 test_results_norm <- twoClassSummary(pred, lev = levels(pred$obs))
-test_results_norm
-```
+test_results_norm_roc <- as.numeric(test_results_norm[1])
 
-```{r}
-# Combinamos ambos métodos
+######################################  MODELO NORMALIZADO + LOG TRF  ######################################
+
+# Aplicamos una transformación log y normalizamos los datos
 
 preprocess_norm_log <- preProcess(train_data_log, norm = c('center','scale'))
+
+# Aplico el modelo aprendido sobre los conjuntos de entrenamiento y validación
+
 train_data_log_norm <- predict(preprocess_norm_log, train_data_log)
 validation_data_log_norm <- predict(preprocess_norm_log, validation_data_log)
+
+# Entrenamos el modelo
 
 rpartFit_log_norm <- train(TARGET ~ .,data = train_data_log_norm, 
                   method = 'rpart', 
                   trControl = fitControl,
                   metric = 'ROC')
-rpartFit_log_norm
-```
+train_log_norm_result <- max(rpartFit_log_norm$results$ROC)
 
-```{r}
-# Predecimos sobre datos de validación
+# Evaluamos en Test
+
 pred <- predict(rpartFit_log_norm,validation_data_log_norm, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
 pred$obs <- validation_data_log_norm$TARGET
 
 test_results_log_norm <- twoClassSummary(pred, lev = levels(pred$obs))
-test_results_log_norm
+test_results_log_norm_roc <- as.numeric(test_results_log_norm[1])
 
-```
+######################################  TABLA FINAL CON LOS RESULTADOS  ######################################
 
-Se logró una mejora sustancial al normalizar los datos, obteniendo unos buenos resultados tanto de training como de validación, por lo que se mantendrán los valores normalizados (esto es bueno porque otros modelos requieren esta transformación).
-
-```{r}
-# Mejores resultados de cada modelo
 modelos <- c('Benchmark','Transformación log','Normalizado','Ambas transformaciones')
-resultados_training <- c(max(rpartFit$results$ROC),max(rpartFit_log$results$ROC),max(rpartFit_norm$results$ROC),max(rpartFit_log_norm$results$ROC))
-resultados_testing <- c(as.numeric(test_results_benchmark[1]), as.numeric(test_results_log[1]), as.numeric(test_results_norm[1]), as.numeric(test_results_log_norm[1]))
-
-data.frame(modelos,resultados_training,resultados_testing)
-
+resultados_training <- c(train_bechmark_result,train_logtf_result,train_norm_result,train_log_norm_result)
+resultados_validation <- c(test_results_benchmark_roc,test_results_log_roc,test_results_norm_roc,test_results_log_norm_roc)
+data.frame(modelos,resultados_training,resultados_validation)
 ```
 
-```{r}
-# Elimino los datasets que no voy a usar
 
-train_data_log <- NULL
-train_data_log_norm <- NULL
-validation_data_log <- NULL
-validation_data_log_norm <- NULL
+
+```{r, fig.width = 10, fig.height = 7}
+
+# Graficamos todas las curvas ROC
+# Modelo Benchmark
+
+pred <- predict(rpartFit,validation_data, type = 'prob')[,2]
+pred2 <- prediction(pred, validation_data$TARGET)
+perf <- performance(pred2,"tpr","fpr")
+
+# Modelo log trf
+
+pred_log <- predict(rpartFit_log,validation_data_log, type = 'prob')[,2]
+pred2_log <- prediction(pred_log, validation_data_log$TARGET)
+perf_log <- performance(pred2_log,"tpr","fpr")
+
+# Modelo normalizado
+
+pred_norm <- predict(rpartFit_norm,validation_data_norm, type = 'prob')[,2]
+pred2_norm <- prediction(pred_norm, validation_data_norm$TARGET)
+perf_norm <- performance(pred2_norm,"tpr","fpr")
+
+# Modelo mixeado
+
+pred_log_norm <- predict(rpartFit_log_norm,validation_data_log_norm, type = 'prob')[,2]
+pred2_log_norm <- prediction(pred_log_norm, validation_data_log_norm$TARGET)
+perf_log_norm <- performance(pred2_log_norm,"tpr","fpr")
+
+# Graficamos la curva ROC
+
+par(mfrow = c(2,2))
+
+plot(perf, main="Curva ROC - Modelo Benchmark", colorize=T)
+plot(perf_log, main="Curva ROC - Modelo log", colorize=T)
+plot(perf_norm, main="Curva ROC - Modelo normalizado", colorize=T)
+plot(perf_log_norm, main="Curva ROC - Modelo mix", colorize=T)
 ```
+
+Vemos la importancia de las variables:
+
+```{r, fig.width = 10, fig.height = 7}
+# Open a pdf file
+pdf("var_importance_rpart.pdf") 
+par(mfrow = c(2,2))
+
+plot(varImp(rpartFit), top = 30, main = 'Feature Importance - Modelo Benchmark')
+plot(varImp(rpartFit_log), top = 30, main = 'Feature Importance - Modelo Log')
+plot(varImp(rpartFit_norm), top = 30, main = 'Feature Importance - Modelo Normalizado')
+plot(varImp(rpartFit_log_norm), top = 30, main = 'Feature Importance - Modelo Mix')
+dev.off()
+```
+
+Las princpales conclusiones que podemos sacar son:
+
+* No hubo ningún modelo que superara el valor de AUC del modelo benchmark, al menos no significativamente (siempre evaluando sobre la performance en validación)
+* Podemos decir que el modelo, en su forma más básica tiene una AUC básica de 0.7, este no es un mal resultado en sí mismo, teniendo en cuenta que todavía no se hizo ningún tipo de ingeniería de atributos.
+* Observamos que los valores de entrenamiento aumentan respecto al modelo benchmark, especialmente para el modelo *log* y *norm*. Sin embargo, baja bastante la performance en validación, señalando un claro caso de *overfitting*. Uno de los motivos por lo cual esto puede estar pasando es debido al alto número de dimensiones (variables), además de que estos modelos consisten en un solo árbol.
+* Si bien el orden varía, todos los modelos mantienen las mismas variables "relevantes" según se observa en los gráficos de importancia de variables.
+
+Es necesario aclarar que optamos por tomar como medida de performance el *área bajo la curva ROC o AUC*. Esto es así ya que es una medida que, a diferencia de otras como el *accuracy* o *recall* o la *matriz de confusión*, es independiente del punto de corte que se elija. Con esto nos referimos a que no toma en consideración un valor umbral determinado para decidir si un elemento pertenece a una clase o a otra. Esto es deseable ya que nos permite entender de forma más genérica la forma en la que está performando el modelo.
+
+El principal objetivo es reducir la dimensionalidad del dataframe. Para esto combinaremos una serie de modelos que determinen la importancia de los atributos, y utilizaremos la combinación de esos resultados para determinar cuáles son las variables más importantes.
+
+# Selección de atributos
+
+Habiendo evaluado algunos modelos, vimos que no hay ninguno significativamente superior al benchmark, sin embargo, decidimos mantener el modelo normalizado, ya que mantiene la misma performance en validación que el modelo base, y tiene la ventaja de que contamos con los datos normalizado, cosa necesaria para algunos modelos que pasaremos a evaluar.
 
 Observamos que el hecho de normalizar los datos es la mejor opción ya que obtenemos un mejor resultado en testing, con una mejora de casi el 5% sobre el modelo benchmark.
 

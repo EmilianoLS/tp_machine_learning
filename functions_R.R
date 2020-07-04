@@ -63,3 +63,14 @@ scale_function <- function(df,target_val){
   
   return(df)
 }
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+predict_function <- function(model,df,objetivo){
+  
+  pred <- predict(model,df, type = 'prob')
+  pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+  pred$obs <- df[,objetivo]
+  
+  test_results_benchmark <- twoClassSummary(pred, lev = levels(pred$obs))
+  return(test_results_benchmark)
+}
