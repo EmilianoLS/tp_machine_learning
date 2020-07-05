@@ -19,6 +19,7 @@ library(rpart)
 library(rpart.plot)
 library(ROCR)
 library(glmnet)
+library(randomForest)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # DATA CLEANING
