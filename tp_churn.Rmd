@@ -9,7 +9,7 @@ output:
 
 ```{r message=FALSE, warning=FALSE}
 #  busco librerias a usar y asigno la ruta en github 
-rm(list = ls())
+#rm(list = ls())
 
 setwd('D:/DS_Projects/tp_machine_learning')
 #setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
@@ -460,50 +460,193 @@ La primer parte que haremos será correr dos o tres modelos que, además de darn
 ```{r}
 # Recordemos que la libreria glmnet consume matrices, no dataframes
 
-train_data$TARGET <- as.logical.factor(if_else(train_data_norm$TARGET == 'churn',1,0))
-validation_data$TARGET <- as.logical.factor(if_else(validation_data_norm$TARGET == 'churn',1,0))
+#train_data$TARGET <- as.logical.factor(if_else(train_data_norm$TARGET == 'churn',1,0))
+#validation_data$TARGET <- as.logical.factor(if_else(validation_data_norm$TARGET == 'churn',1,0))
 
 matrix_train = model.matrix( ~ .-1, train_data)
 matrix_test = model.matrix(~.-1, validation_data)
 
-x_train <- as.matrix(matrix_train[,-312])
-y_train = as.matrix(matrix_train[,312]) # 0/1 flag.
+x_train <- as.matrix(matrix_train[,-313])
+y_train = as.matrix(matrix_train[,313]) # 0/1 flag.
 
-x_test <- as.matrix(matrix_test[,-312])
-y_test<- as.matrix(matrix_test[,312])
+x_test <- as.matrix(matrix_test[,-313])
+y_test<- as.matrix(matrix_test[,313])
 
 ############################################## MODELO DE REG LOG SIN REGULARIZACIÓN ###################################################
 
-lasso.sin.reg = glmnet(x = x_train , 
-                   y = y_train,
-                   family = 'binomial', 
-                   alpha = 1 , 
-                   lambda = 0, # sin regularizacion
+grid.l =exp(seq(1 , -10 , length = 20))
+grid.l
+
+cv.out = cv.glmnet(x_train, y_train, 
+                   family = 'binomial', # Modelo logistico.
+                   type.measure="auc", # Metrica del CV (no depende del umbral).
+                   lambda = grid.l, 
+                   alpha = 1, # LASSO.
+                   nfolds = 5,
                    standardize = TRUE)
 
-# Predicciones en Train
+# Visualuzamos la evolucion de los valores de las variables 
+# en funcion de los distintos lambda log(??)
 
-pred_tr = predict(lasso.sin.reg, s = 0 , newx = x_train, type = 'response')
+plot (cv.out)
+```
+
+```{r}
+# Guardamos el mejor lambda
+
+bestlam = cv.out$lambda.min
+
+# Predicciones sobre el conjunto de Train con el mejor lambda
+
+pred_train = predict(cv.out, s = bestlam , newx = x_train, type = 'response')
 
 # Predicciones en Test
 
-pred = predict(lasso.sin.reg, s = 0 , newx = x_test, type = 'response')
+pred_test = predict(cv.out, s = bestlam , newx = x_test, type = 'response')
 
 # Calculo la curva ROC en Train
 
-dev.off();
-pred2 <- prediction(pred_tr, y_train)
-perf <- performance(pred2,"tpr","fpr")
+pred2_train <- prediction(pred_train, y_train)
+perf_train <- performance(pred2_train,"tpr","fpr")
+
+# Calculo la curva ROC en Test
+
+pred2_test <- prediction(pred_test, y_test)
+perf_test <- performance(pred2_test,"tpr","fpr")
 
 # Graficamos la curva ROC
 
-plot(perf, main="Curva ROC", colorize=T)
+par(mfrow = c(1,2))
 
-auc <- performance(pred2, measure = "auc")
-auc@y.values[[1]] 
+plot(perf_train, main = "Curva ROC training", colorize = T)
+plot(perf_test, main = "Curva ROC testing", colorize = T)
+
+# Calculamos el AUC en Train
+
+auc_train <- performance(pred2_train, measure = "auc")
+#auc_train@y.values[[1]] 
+
+# Calculamos el AUC en Test
+
+auc_test <- performance(pred2_test, measure = "auc")
+#auc_test@y.values[[1]] 
 ```
 
+```{r}
+resultados_log_training <- c(auc_train@y.values[[1]] )
+resultados_log_testing <- c(auc_test@y.values[[1]] )
+modelo <- c('Regularización Lasso optimizada')
 
+data.frame(modelo, Training = resultados_log_training, Validation = resultados_log_testing)
+```
+```{r}
+# Guardamos las variables más importantes
+
+coef_matrix <- as.matrix(coef(cv.out, cv.out$lambda.min))
+important_features <- as.matrix(coef_matrix[coef_matrix != 0,])
+important_features <- row.names(important_features)
+
+important_features
+```
+
+```{r}
+# Aplicamos un modelo de random Forest
+
+
+control <- trainControl(method = 'cv', 
+                        number = 5,
+                        classProbs = TRUE,
+                        summaryFunction = twoClassSummary,
+                        verboseIter = TRUE)
+
+
+set.seed(123)
+
+#Number randomely variable selected is mtry
+
+mtry <- sqrt(ncol(train_data))
+
+#tunegrid <- expand.grid(.mtry=mtry)
+rf_default <- train(TARGET~., 
+                      data = train_data, 
+                      method = 'rf', 
+                      metric = 'ROC', 
+                      #tuneGrid = tunegrid, 
+                      trControl = control,
+                      preProcess = c('center','scale'))
+print(rf_default)
+```
+```{r}
+# Guardo el mejor AUC de Train
+
+rf_basic_results_training <- max(rf_default$results$ROC)
+
+# Evaluamos en Test
+
+pred <- predict(rf_default,validation_data, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data$TARGET
+
+test_results_rf_basic <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_rf_basic_roc <- as.numeric(test_results_rf_basic[1])
+
+#################################################### MODELO RANDOM FOREST OPTIMIZADO ###########################################
+
+control_cv <- trainControl(method='repeatedcv', 
+                        number=5, 
+                        repeats=3,
+                        classProbs = TRUE,
+                        search = 'random',
+                        summaryFunction = twoClassSummary,
+                        verboseIter = TRUE)
+
+# Realizo una busqueda aleatoria del parametro mtry mientras coloco distintos valores
+# de profundidad del árbol
+
+modellist <- list()
+
+#train with different ntree parameters
+for (ntree in c(1000,1500,2000,2500)){
+  
+  set.seed(123)
+  
+  rf_optimized <- train(TARGET ~ .,
+               data = train_data,
+               method = 'rf',
+               metric = 'ROC',
+               tuneLength  = 15, 
+               trControl = control_cv,
+               preProcess = c('center','scale'),
+               ntree = ntree)
+  
+  key <- toString(ntree)                          # Guardo el numero de arboles usados
+  best_mtry <- as.numeric(rf_optimized$bestTune)  # Me guardo la mejor mtry de la corrida
+  
+  modellist[[key]] <- c(max(rf_optimized$results$ROC), best_mtry)
+}
+
+
+```
+
+```{r}
+#Compare results
+
+results <- resamples(modellist)
+summary(results)
+
+# Guardo el mejor AUC de Train
+
+rf_optimized_results_training <- max(rf_optimized$results$ROC)
+
+# Evaluamos en Test
+
+pred <- predict(rf_optimized,validation_data, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data$TARGET
+
+test_results_rf_optimized <- twoClassSummary(pred, lev = levels(pred$obs))
+test_results_rf_optimized_roc <- as.numeric(test_results_rf_optimized[1])
+```
 
 Antes de avanzar con la selección de atributos, notamos que al momento de normalizar se advirtió que muchas variables tenían varianza cercana a cero, esto signiica que son prácticamente constantes, por lo que considerarlas para un modelo es irrelevante ya que no tienen relación alguna con la variable target.
 Para esto usamos la funcion *nearZeroVar* de *CARET* que toma dos indicadores para determinar si una variable tiene varianza igual o cercana a cero:
