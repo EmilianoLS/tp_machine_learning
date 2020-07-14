@@ -11,8 +11,8 @@ output:
 #  busco librerias a usar y asigno la ruta en github 
 #rm(list = ls())
 
-setwd('D:/DS_Projects/tp_machine_learning')
-#setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
+# setwd('D:/DS_Projects/tp_machine_learning')
+setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
 #setwd('C:/Users/tutif/Desktop/emi/tp_machine_learning')
 source('functions_R.R')
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
@@ -462,6 +462,8 @@ La primer parte que haremos será correr dos o tres modelos que, además de darn
 
 #train_data$TARGET <- as.logical.factor(if_else(train_data_norm$TARGET == 'churn',1,0))
 #validation_data$TARGET <- as.logical.factor(if_else(validation_data_norm$TARGET == 'churn',1,0))
+#train_data$TARGET <- as.logical(if_else(train_data$TARGET == 'churn',1,0))
+#validation_data$TARGET <- as.logical(if_else(validation_data$TARGET == 'churn',1,0))
 
 matrix_train = model.matrix( ~ .-1, train_data)
 matrix_test = model.matrix(~.-1, validation_data)
@@ -472,11 +474,14 @@ y_train = as.matrix(matrix_train[,313]) # 0/1 flag.
 x_test <- as.matrix(matrix_test[,-313])
 y_test<- as.matrix(matrix_test[,313])
 
-############################################## MODELO DE REG LOG SIN REGULARIZACIÓN ###################################################
+############################################## MODELO DE REG LOG REGULARIZADO ###################################################
+# Creamos una secuencia de valores para lambda
 
 grid.l =exp(seq(1 , -10 , length = 20))
 grid.l
 
+
+set.seed(123)
 cv.out = cv.glmnet(x_train, y_train, 
                    family = 'binomial', # Modelo logistico.
                    type.measure="auc", # Metrica del CV (no depende del umbral).
@@ -514,7 +519,26 @@ perf_train <- performance(pred2_train,"tpr","fpr")
 pred2_test <- prediction(pred_test, y_test)
 perf_test <- performance(pred2_test,"tpr","fpr")
 
-# Graficamos la curva ROC
+pred2_lasso <- prediction(pred_tr_lasso, y_train)
+perf_tr_lasso <- performance(pred2_lasso,"tpr","fpr")
+
+plot(perf_tr_lasso, main="Curva ROC", colorize=T)
+
+auc_lasso_train <- performance(pred2_lasso, measure = "auc")
+auc_lasso_train@y.values[[1]] 
+
+# Calculo la curva ROC en Test
+
+
+pred2_test_lasso <- prediction(pred_test_lasso, y_test)
+perf_test_lasso <- performance(pred2_test_lasso,"tpr","fpr")
+
+plot(perf_test_lasso, main="Curva ROC", colorize=T)
+
+auc_lasso_test <- performance(pred2_test_lasso, measure = "auc")
+auc_lasso_test@y.values[[1]]
+
+############################################## MODELO RANDOM FOREST ###################################################
 
 par(mfrow = c(1,2))
 
