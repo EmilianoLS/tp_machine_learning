@@ -9,10 +9,10 @@ output:
 
 ```{r message=FALSE, warning=FALSE}
 #  busco librerias a usar y asigno la ruta en github 
-#rm(list = ls())
+rm(list = ls())
 
-# setwd('D:/DS_Projects/tp_machine_learning')
-setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
+setwd('D:/DS_Projects/tp_machine_learning')
+#setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
 #setwd('C:/Users/tutif/Desktop/emi/tp_machine_learning')
 source('functions_R.R')
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
@@ -519,26 +519,7 @@ perf_train <- performance(pred2_train,"tpr","fpr")
 pred2_test <- prediction(pred_test, y_test)
 perf_test <- performance(pred2_test,"tpr","fpr")
 
-pred2_lasso <- prediction(pred_tr_lasso, y_train)
-perf_tr_lasso <- performance(pred2_lasso,"tpr","fpr")
-
-plot(perf_tr_lasso, main="Curva ROC", colorize=T)
-
-auc_lasso_train <- performance(pred2_lasso, measure = "auc")
-auc_lasso_train@y.values[[1]] 
-
-# Calculo la curva ROC en Test
-
-
-pred2_test_lasso <- prediction(pred_test_lasso, y_test)
-perf_test_lasso <- performance(pred2_test_lasso,"tpr","fpr")
-
-plot(perf_test_lasso, main="Curva ROC", colorize=T)
-
-auc_lasso_test <- performance(pred2_test_lasso, measure = "auc")
-auc_lasso_test@y.values[[1]]
-
-############################################## MODELO RANDOM FOREST ###################################################
+# Graficamos las curvas ROC
 
 par(mfrow = c(1,2))
 
@@ -557,13 +538,16 @@ auc_test <- performance(pred2_test, measure = "auc")
 ```
 
 ```{r}
+# Guardamos los resultados
+
 resultados_log_training <- c(auc_train@y.values[[1]] )
 resultados_log_testing <- c(auc_test@y.values[[1]] )
 modelo <- c('Regularización Lasso optimizada')
 
+saveRDS(cv.out, "lasso_opt_model.rds")
+
 data.frame(modelo, Training = resultados_log_training, Validation = resultados_log_testing)
-```
-```{r}
+
 # Guardamos las variables más importantes
 
 coef_matrix <- as.matrix(coef(cv.out, cv.out$lambda.min))
@@ -573,7 +557,7 @@ important_features <- row.names(important_features)
 important_features
 ```
 
-```{r}
+```{r warning=FALSE}
 # Aplicamos un modelo de random Forest
 
 
@@ -591,6 +575,7 @@ set.seed(123)
 mtry <- sqrt(ncol(train_data))
 
 #tunegrid <- expand.grid(.mtry=mtry)
+
 rf_default <- train(TARGET~., 
                       data = train_data, 
                       method = 'rf', 
@@ -599,8 +584,7 @@ rf_default <- train(TARGET~.,
                       trControl = control,
                       preProcess = c('center','scale'))
 print(rf_default)
-```
-```{r}
+
 # Guardo el mejor AUC de Train
 
 rf_basic_results_training <- max(rf_default$results$ROC)
@@ -614,19 +598,22 @@ pred$obs <- validation_data$TARGET
 test_results_rf_basic <- twoClassSummary(pred, lev = levels(pred$obs))
 test_results_rf_basic_roc <- as.numeric(test_results_rf_basic[1])
 
+saveRDS(rf_default, "rf_basic_model.rds") # Guardo el modelo
+#my_model <- readRDS("model.rds")
+```
+
+```{r}
 #################################################### MODELO RANDOM FOREST OPTIMIZADO ###########################################
 
-control_cv <- trainControl(method='repeatedcv', 
+control_cv <- trainControl(method='cv', 
                         number=5, 
-                        repeats=3,
                         classProbs = TRUE,
-                        search = 'random',
+                        #search = 'random',
                         summaryFunction = twoClassSummary,
                         verboseIter = TRUE)
 
-# Realizo una busqueda aleatoria del parametro mtry mientras coloco distintos valores
-# de profundidad del árbol
 
+tunegrid <- expand.grid(.mtry = c(156))
 modellist <- list()
 
 #train with different ntree parameters
@@ -638,17 +625,24 @@ for (ntree in c(1000,1500,2000,2500)){
                data = train_data,
                method = 'rf',
                metric = 'ROC',
-               tuneLength  = 15, 
+               tuneGrid = tunegrid, 
                trControl = control_cv,
                preProcess = c('center','scale'),
                ntree = ntree)
   
   key <- toString(ntree)                          # Guardo el numero de arboles usados
-  best_mtry <- as.numeric(rf_optimized$bestTune)  # Me guardo la mejor mtry de la corrida
+  #best_mtry <- as.numeric(rf_optimized$bestTune)  # Me guardo la mejor mtry de la corrida
   
-  modellist[[key]] <- c(max(rf_optimized$results$ROC), best_mtry)
+  modellist[[key]] <- c(max(rf_optimized$results$ROC))
 }
 
+# Corte el modelo antes porque iba a tardar mucho y no vale la pena porque no va a ser el modelo final este
+# La mejor de las MTRY fue de 118 variables asi que ahora vamos a hacer lo siguiente:
+
+# Probar el random forest con distintas cantidades de árboles, manteniendo MTRY = 156 (optimo anterior) 
+# Una vez seleccionado la mejor cantidad de arboles, vuelvo a probar el modelo pero evaluando MTRY entre 156 y 118
+
+saveRDS(rf_default, "rf_deep_model.rds") # Guardo el modelo
 
 ```
 
