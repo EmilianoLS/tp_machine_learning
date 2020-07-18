@@ -9,7 +9,7 @@ output:
 
 ```{r message=FALSE, warning=FALSE}
 #  busco librerias a usar y asigno la ruta en github 
-rm(list = ls())
+#rm(list = ls())
 
 setwd('D:/DS_Projects/tp_machine_learning')
 #setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
@@ -457,6 +457,13 @@ La primer parte que haremos será correr dos o tres modelos que, además de darn
 
 ### Modelo log regularizado
 
+Lo que haremos a continuación es correr un modelo de clasificación con lasso por dos motivos:
+
+* Mejorar el modelo benchmark intentando restringir el modelo en cuanto a las variables 
+* Hacer selección de variables 
+
+Se van a correr modelos para distintos valores de lambda, validándolos mediante cross validation, nos quedaremos con el mejor y lo evaluaremos sobre el conjunto de *validation*. Si se obtiene una mejora respecto del benchmark entonces podemos considerarlo una mejora, sin embargo, apuntamos a reducir el número de variables para mantener las más relevantes
+
 ```{r}
 # Recordemos que la libreria glmnet consume matrices, no dataframes
 
@@ -477,7 +484,7 @@ y_test<- as.matrix(matrix_test[,313])
 ############################################## MODELO DE REG LOG REGULARIZADO ###################################################
 # Creamos una secuencia de valores para lambda
 
-grid.l =exp(seq(1 , -10 , length = 20))
+grid.l =exp(seq(1 , -20 , length = 50))
 grid.l
 
 
@@ -646,15 +653,119 @@ saveRDS(rf_default, "rf_deep_model.rds") # Guardo el modelo
 
 ```
 
-```{r}
-#Compare results
 
-results <- resamples(modellist)
-summary(results)
+```{r}
+# Selecciono de una grilla de valores de mtry el mejor que este entre 118 y 156 manteniendo la mejor profundidad de 2500 arboles
+
+control <- trainControl(method='cv', 
+                        number=3, 
+                        search='grid',                        
+                        classProbs = TRUE,
+                        #search = 'random',
+                        summaryFunction = twoClassSummary,
+                        verboseIter = TRUE)
+
+tunegrid <- expand.grid(.mtry = seq(118,156, by = 10)) 
+
+rf_gridsearch_2 <- train(TARGET ~ ., 
+                       data = train_data,
+                       method = 'rf',
+                       metric = 'ROC',
+                       tuneGrid = tunegrid,
+                       trControl = control,
+                       preProcess = c('center','scale'),
+                       ntree = 2500)
+```
+
+```{r}
+# Guardo el modelo
+
+saveRDS(rf_gridsearch_2, "rf_final.rds") # Guardo el modelo
 
 # Guardo el mejor AUC de Train
 
-rf_optimized_results_training <- max(rf_optimized$results$ROC)
+rf_optimized_final_train <- max(rf_gridsearch_2$results$ROC)
+
+# Evaluamos en Test
+
+pred_test <- predict(rf_gridsearch_2,validation_data, type = 'prob')
+pred_test$pred <- factor(if_else(pred_test$churn >= .5, 'churn','no_churn'))
+pred_test$obs <- validation_data$TARGET
+
+test_results_rf_final <- twoClassSummary(pred_test, lev = levels(pred_test$obs))
+test_results_rf_final_roc <- as.numeric(test_results_rf_final[1])
+
+# Muestro resultados
+
+modelo <- c('Random forest optimizado')
+
+data.frame(modelo, rf_optimized_final_train,test_results_rf_final_roc)
+
+# Guardo las variables mas importantes
+
+rf_important_features <- varImp(rf_gridsearch_2, scale = TRUE)
+```
+
+```{r}
+# Comparamos el modelo Lasso y todos los Random forest
+
+lasso <- readRDS("lasso_opt_model.rds")
+rf_basic <- readRDS("rf_basic_model.rds")
+rf_optimized <- readRDS('rf_deep_model.rds')
+rf_final <- readRDS('rf_final.rds')
+
+modelos_feature_selection <- c('Lasso','Random Forest Basico','Random Forest 1 optimizacion','Random Forest Final')
+
+################################################ LASSO #############################################################
+
+pred_train_lasso = predict(lasso, s = lasso$lambda.min , newx = x_train, type = 'response')
+
+# Predicciones en Test
+
+pred_test_lasso = predict(lasso, s = lasso$lambda.min , newx = x_test, type = 'response')
+
+# Calculo la curva ROC en Train
+
+pred2_train <- prediction(pred_train_lasso, y_train)
+lasso_train_result <- performance(pred2_train,"tpr","fpr")
+
+# Calculo la curva ROC en Test
+
+pred2_test <- prediction(pred_test_lasso, y_test)
+lasso_test_result <- performance(pred2_test,"tpr","fpr")
+
+# Calculamos el AUC en Train
+
+lasso_train_result_roc <- performance(pred2_train, measure = "auc")
+lasso_train_result_roc <- lasso_train_result_roc@y.values[[1]] 
+
+# Calculamos el AUC en Test
+
+lasso_test_result_roc <- performance(pred2_test, measure = "auc")
+lasso_test_result_roc <- lasso_test_result_roc@y.values[[1]] 
+
+
+################################################ RANDOM FOREST ######################################################
+################################################### ESTANDAR ########################################################
+
+# Evaluamos en Train
+
+rf_basic_train_result <- max(rf_basic$results$ROC)
+
+# Evaluamos en Test
+
+pred <- predict(rf_basic,validation_data, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data$TARGET
+
+rf_basic_test_result <- twoClassSummary(pred, lev = levels(pred$obs))
+rf_basic_test_result_roc <- as.numeric(rf_basic_test_result[1])
+
+################################################ 1 OPTIMIZACION #####################################################
+
+# Evaluamos en Train
+
+rf_cv_train_result <- max(rf_optimized$results$ROC)
 
 # Evaluamos en Test
 
@@ -662,9 +773,197 @@ pred <- predict(rf_optimized,validation_data, type = 'prob')
 pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
 pred$obs <- validation_data$TARGET
 
-test_results_rf_optimized <- twoClassSummary(pred, lev = levels(pred$obs))
-test_results_rf_optimized_roc <- as.numeric(test_results_rf_optimized[1])
+rf_cv_test_result <- twoClassSummary(pred, lev = levels(pred$obs))
+rf_cv_test_result_roc <- as.numeric(rf_cv_test_result[1])
+
+################################################ FINAL #############################################################
+
+# Evaluamos en Train
+
+rf_final_train_result <- max(rf_final$results$ROC)
+
+# Evaluamos en Test
+
+pred <- predict(rf_final,validation_data, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data$TARGET
+
+rf_final_test_result <- twoClassSummary(pred, lev = levels(pred$obs))
+rf_final_test_result_roc <- as.numeric(rf_final_test_result[1])
+
+####################################################################################################################
+# Muestro todos los resultados
+
+train_results <- c(lasso_train_result_roc, rf_basic_train_result, rf_cv_train_result, rf_final_train_result)
+test_results <- c(lasso_test_result_roc, rf_basic_test_result_roc, rf_cv_test_result_roc, rf_final_test_result_roc)
+data.frame(modelos_feature_selection, Train_Results = train_results, Test_Results = test_results)
 ```
+
+Obtuvimos una serie de modelos con buenos resultados, ahora veamos la relevancia de las variables para cada uno:
+
+```{r}
+# Grafico las variables mas importantes
+
+# Lasso
+coef_matrix <- as.matrix(coef(lasso, lasso$lambda.min))
+important_features <- data.frame(importance = as.matrix(coef_matrix[coef_matrix != 0,]))
+important_features$feature <- row.names(important_features)
+row.names(important_features) <- seq(1:nrow(important_features))
+
+# Graficamos
+
+par(mfrow = c(1,4))
+
+ggplot(important_features, aes(x=reorder(feature,importance), y=importance)) + geom_bar(stat = "identity") + coord_flip()
+plot(varImp(rf_basic), top = 30, main = 'Random Forest Basico')
+plot(varImp(rf_optimized), top = 30, main = 'Random Forest Optimizado')
+plot(varImp(rf_final), top = 30, main = 'Random Forest Final')
+
+
+```
+
+Por último nos fijamos qué variables importantes coinciden:
+
+```{r}
+
+# VARIABLES LASSO
+
+lasso_features <- important_features$feature
+
+# VARIABLES RANDOM FOREST
+
+rf_features <- varImp(rf_final)
+rf_features <- data.frame(rf_features$importance)
+rf_features$feature <- row.names(rf_features)
+row.names(rf_features) <- seq(1:nrow(rf_features))
+rf_features <- rf_features[order(-rf_features$Overall),]
+rf_features <- rf_features[rf_features$Overall >= 1,]
+rf_features <- rf_features$feature
+
+# Variables coincidentes 
+
+intersect(lasso_features, rf_features)
+
+```
+Ya tenemos nuestro set de variables más relevantes, lo siguiente es revisarlas, ver las que coinciden y de las que no, si podemos eliminar algunas más en base a criterios de correlación y variabilidad, para finalmente ensamblar todo en un último modelo final.
+
+No corremos ningún modelo solamente con estas variables porque en teoría, no mejoraría la performance.
+
+#### Refinamiento de las variables más importantes
+
+```{r}
+# Selecciono todas las variables de ambos modelos
+
+most_important_features <- unique(c(lasso_features, rf_features))
+most_important_features <- sub('TRUE','', most_important_features) # Elimino la palabra TRUE de las varables logicas
+most_important_features <- sub('FALSE','', most_important_features) # Elimino la palabra TRUE de las varables logicas
+most_important_features <- most_important_features[-1]              # Elimino la variable 'Intercept'
+
+# Calculo cualquier posible correlación entre las variables
+
+corr_mat <- cor(train_data[,most_important_features])
+
+# Cuento features muy correlacionados
+
+highCorr <- sum(abs(corr_mat[upper.tri(corr_mat)]) > .999)
+highCorr # Hay 11 features con correlacion perfecta!! Podemos eliminar uno de los dos
+
+# Usamos la funcion findCorrelation para eliminar una de las dos variables mas correlacionadas
+
+highlyCorDescr <- findCorrelation(corr_mat, cutoff = .7)
+length(highlyCorDescr) # Hay 55 features con correlación de mas de 70%, eliminamos una de las dos
+train_data_filtered <- train_data[, -highlyCorDescr]
+
+# Filtramos variables con varianza cero
+# Se corrio y se comprobo que no había mejoras sino que bajaba la performance
+#nzv <- nearZeroVar(train_data_filtered, saveMetrics = TRUE)
+#not_zv_features <- row.names(nzv[nzv$zeroVar == FALSE,]) # Me quedo con las que no tienen varianza cero
+#train_data_filtered <- train_data_filtered[,not_zv_features]
+#data[, nzv]
+```
+
+## Modelo final: XGBOST sin optimizar
+
+```{r message=FALSE, warning=FALSE}
+
+trctrl <- trainControl(method = "cv", 
+                       number = 5,
+                       classProbs = TRUE,
+                       summaryFunction = twoClassSummary,
+                       verboseIter = FALSE)
+
+
+xgb_fit <- train(TARGET ~., data = train_data_filtered, 
+                method = "xgbTree",
+                trControl=trctrl,
+                metric = 'ROC',
+                preProcess = c('center','scale'))
+                #tuneLength = 10)
+
+saveRDS(xgb_fit, "xbg_basic.rds") # Guardo el modelo
+
+```
+
+
+```{r}
+# Evaluamos en Train
+
+xgb_fit <- readRDS("xbg_basic.rds")
+
+xgb_train_result <- max(xgb_fit$results$ROC)
+xgb_train_result
+
+# Evaluamos en Test
+
+validation_data_filtered <- validation_data[,-highlyCorDescr] # Filtramos las variables relevantes
+#validation_data_filtered <- validation_data[,not_zv_features]
+
+pred <- predict(xgb_fit,validation_data_filtered, type = 'prob')
+pred$pred <- factor(if_else(pred$churn >= .5, 'churn','no_churn'))
+pred$obs <- validation_data_filtered$TARGET
+
+xgb_test_result <- twoClassSummary(pred, lev = levels(pred$obs))
+xgb_test_result_roc <- as.numeric(xgb_test_result[1])
+xgb_test_result_roc
+
+# Graficamos las curvas ROC
+
+pred <- predict(xgb_fit,validation_data_filtered, type = 'prob')[,2]
+pred2 <- prediction(pred, validation_data_filtered$TARGET)
+perf <- performance(pred2,"tpr","fpr")
+
+plot(perf, main="Curva ROC Testing - XGBOOST", colorize=T)
+
+```
+### Hacemos un grid search para optimizar el modelo final
+
+```{r}
+
+trctrl <- trainControl(method = "cv", 
+                       number = 5,
+                       classProbs = TRUE,
+                       search = 'random',
+                       summaryFunction = twoClassSummary,
+                       verboseIter = FALSE)
+
+tune_grid <- expand.grid(nrounds=c(100,200,300,400), 
+                         max_depth = c(3:7),
+                         eta = c(0.05, 1),
+                         gamma = seq(0,5, by = 0.5),
+                         colsample_bytree = c(0.75),
+                         subsample = c(0.50),
+                         min_child_weight = c(0:10))
+
+xgb_fit_cv <- train(TARGET ~., data = train_data_filtered, 
+                method = "xgbTree",
+                trControl=trctrl,
+                metric = 'ROC',
+                preProcess = c('center','scale'),
+                tuneGrid = tune_grid)
+xgb_fit_cv
+```
+
+
 
 Antes de avanzar con la selección de atributos, notamos que al momento de normalizar se advirtió que muchas variables tenían varianza cercana a cero, esto signiica que son prácticamente constantes, por lo que considerarlas para un modelo es irrelevante ya que no tienen relación alguna con la variable target.
 Para esto usamos la funcion *nearZeroVar* de *CARET* que toma dos indicadores para determinar si una variable tiene varianza igual o cercana a cero:
@@ -673,11 +972,8 @@ Para esto usamos la funcion *nearZeroVar* de *CARET* que toma dos indicadores pa
 * El porcentaje de valores únicos: Número de valores únicos entre el total de registros. Debería tender a cero en la medida que se incrementa la granularidad.
 
 ```{r}
-# Filtramos variables con varianza cero o cercana a cero
-dim(data)
-nzv <- nearZeroVar(data)
-data_filtered <- data[, -nzv]
-dim(data_filtered)
+
+
 
 ```
 

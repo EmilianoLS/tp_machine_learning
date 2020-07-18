@@ -20,6 +20,10 @@ library(rpart.plot)
 library(ROCR)
 library(glmnet)
 library(randomForest)
+library(xgboost)
+
+# Librerias de feature importance
+library(vip)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # DATA CLEANING
@@ -75,4 +79,72 @@ predict_function <- function(model,df,objetivo){
   
   test_results_benchmark <- twoClassSummary(pred, lev = levels(pred$obs))
   return(test_results_benchmark)
+}
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+one_hot_sparse <- function(data_set) {
+  
+  require(Matrix)
+  
+  created <- FALSE
+  
+  if (sum(sapply(data_set, is.numeric)) > 0) {  # Si hay, Pasamos los numéricos a una matriz esparsa (sería raro que no estuviese, porque "Label"  es numérica y tiene que estar sí o sí)
+    out_put_data <- as(as.matrix(data_set[,sapply(data_set, is.numeric), with = FALSE]), "dgCMatrix")
+    created <- TRUE
+  }
+  
+  if (sum(sapply(data_set, is.logical)) > 0) {  # Si hay, pasamos los lógicos a esparsa y lo unimos con la matriz anterior
+    if (created) {
+      out_put_data <- cbind2(out_put_data,
+                             as(as.matrix(data_set[,sapply(data_set, is.logical),
+                                                   with = FALSE]), "dgCMatrix"))
+    } else {
+      out_put_data <- as(as.matrix(data_set[,sapply(data_set, is.logical), with = FALSE]), "dgCMatrix")
+      created <- TRUE
+    }
+  }
+  
+  # Identificamos las columnas que son factor (OJO: el data.frame no debería tener character)
+  fact_variables <- names(which(sapply(data_set, is.factor)))
+  
+  # Para cada columna factor hago one hot encoding
+  i <- 0
+  
+  for (f_var in fact_variables) {
+    
+    f_col_names <- levels(data_set[[f_var]])
+    f_col_names <- gsub(" ", ".", paste(f_var, f_col_names, sep = "_"))
+    j_values <- as.numeric(data_set[[f_var]])  # Se pone como valor de j, el valor del nivel del factor
+    
+    if (sum(is.na(j_values)) > 0) {  # En categóricas, trato a NA como una categoría más
+      j_values[is.na(j_values)] <- length(f_col_names) + 1
+      f_col_names <- c(f_col_names, paste(f_var, "NA", sep = "_"))
+    }
+    
+    if (i == 0) {
+      fact_data <- sparseMatrix(i = c(1:nrow(data_set)), j = j_values,
+                                x = rep(1, nrow(data_set)),
+                                dims = c(nrow(data_set), length(f_col_names)))
+      fact_data@Dimnames[[2]] <- f_col_names
+    } else {
+      fact_data_tmp <- sparseMatrix(i = c(1:nrow(data_set)), j = j_values,
+                                    x = rep(1, nrow(data_set)),
+                                    dims = c(nrow(data_set), length(f_col_names)))
+      fact_data_tmp@Dimnames[[2]] <- f_col_names
+      fact_data <- cbind(fact_data, fact_data_tmp)
+    }
+    
+    i <- i + 1
+  }
+  
+  if (length(fact_variables) > 0) {
+    if (created) {
+      out_put_data <- cbind(out_put_data, fact_data)
+    } else {
+      out_put_data <- fact_data
+      created <- TRUE
+    }
+  }
+  return(out_put_data)
 }
