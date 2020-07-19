@@ -12,10 +12,13 @@ output:
 rm(list = ls())
 
 setwd('D:/DS_Projects/tp_machine_learning')
+
 #setwd('C:/Users/elosasso/OneDrive - Universidad Torcuato Di Tella/Machine Learning/TP/script/tp_machine_learning')
 #setwd('C:/Users/tutif/Desktop/emi/tp_machine_learning')
 source('functions_R.R')
+
 Ruta <- "https://raw.githubusercontent.com/EmilianoLS/tp_machine_learning/master/train.csv"
+
 
 
 ```
@@ -75,6 +78,7 @@ data[bool_columns] <- lapply(data[bool_columns], as.logical)
 # Vuelvo a chequear las clases de variables
 
 table(sapply(data, class)) 
+
 ```
 
 Como se ve, ahora todas las variables tienen su clase correspondiente.
@@ -82,6 +86,26 @@ Como se ve, ahora todas las variables tienen su clase correspondiente.
 El siguiente paso es hacer un análisis exploratorio de las variables para entender cómo se relacionan, buscar si existen tendencias o alguna variable que permita diferenciar lo suficientemente bien a los grupos que hacen churn vs los que no lo hacen.
 
 # Exploratory Data Analysis
+
+```{r}
+# Armo una matriz de correlacion
+Matriz_correlacion <- round(cor(data,  use = "na.or.complete"), digits = 5)
+# filtro por el umbral  min 0.7
+indice_col <- c(findCorrelation(MAtriz_correlacion, 0.7))
+# identifico las variables con correlacion mayor a 0.7
+Columnas_Cor <-names(data[,indice_col])
+
+# identifico la varianza para ir explorando las variables de mi data.frame
+nzv <- as.data.frame(nearZeroVar(data, saveMetrics = TRUE))
+
+Zer_var <- row.names(nzv[nzv$zeroVar == TRUE,])
+
+Nzv_features <- row.names(nzv[nzv$nzv == TRUE,]) # Me quedo con las que tienen varianza cercana a cero
+
+```
+
+Vemos que hay 221 variables con una correlacion bastante elevada, esto nos podria traer problemas de
+multicolinealiad con nuestro modelo y afectar su performance. En este sentido tambien exploramos la varianza en los datos de cada columna, encontramos que ninguno tiene varianza 0 y hay 257 datos que si tienen una varianza cercana a 0, que podemos interpretar esto en que tengan poca incidencia en la funcion a determinar por el modelo o por el contrario, que tengan alto grado de impacto en la funcion y capacidad de prediccion de mi modelo. 
 
 Antes de empezar a analizar las muchas variables similares que hay, comenzamos estudiando las distribuciones para las variables de edad, la target y las tres variables desconocidas. 
 
