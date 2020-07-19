@@ -963,6 +963,9 @@ xgb_fit_cv <- train(TARGET ~., data = train_data_filtered,
 xgb_fit_cv
 ```
 
+```{r}
+saveRDS(xgb_fit_cv, "xbg_cv.rds") # Guardo el modelo
+```
 
 
 Antes de avanzar con la selección de atributos, notamos que al momento de normalizar se advirtió que muchas variables tenían varianza cercana a cero, esto signiica que son prácticamente constantes, por lo que considerarlas para un modelo es irrelevante ya que no tienen relación alguna con la variable target.
