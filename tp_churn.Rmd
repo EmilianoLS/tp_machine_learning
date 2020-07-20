@@ -90,10 +90,15 @@ El siguiente paso es hacer un análisis exploratorio de las variables para enten
 ```{r}
 # Armo una matriz de correlacion
 Matriz_correlacion <- round(cor(data,  use = "na.or.complete"), digits = 5)
-# filtro por el umbral  min 0.7
-indice_col <- c(findCorrelation(MAtriz_correlacion, 0.7))
-# identifico las variables con correlacion mayor a 0.7
-Columnas_Cor <-names(data[,indice_col])
+
+# filtro por el umbral de correlacion
+indice_col_0.9 <- c(findCorrelation(Matriz_correlacion, 0.9))
+indice_col_0.8 <- c(findCorrelation(Matriz_correlacion, 0.8))
+indice_col_0.7 <- c(findCorrelation(Matriz_correlacion, 0.7))
+# identifico las variables con correlacion
+Columnas_Cor.9 <-names(data[,indice_col_0.9])
+Columnas_Cor.8 <-names(data[,indice_col_0.8])
+Columnas_Cor.7 <-names(data[,indice_col_0.7])
 
 # identifico la varianza para ir explorando las variables de mi data.frame
 nzv <- as.data.frame(nearZeroVar(data, saveMetrics = TRUE))
@@ -104,8 +109,9 @@ Nzv_features <- row.names(nzv[nzv$nzv == TRUE,]) # Me quedo con las que tienen v
 
 ```
 
-Vemos que hay 221 variables con una correlacion bastante elevada, esto nos podria traer problemas de
-multicolinealiad con nuestro modelo y afectar su performance. En este sentido tambien exploramos la varianza en los datos de cada columna, encontramos que ninguno tiene varianza 0 y hay 257 datos que si tienen una varianza cercana a 0, que podemos interpretar esto en que tengan poca incidencia en la funcion a determinar por el modelo o por el contrario, que tengan alto grado de impacto en la funcion y capacidad de prediccion de mi modelo. 
+Vemos que hay 153 variables con una correlacion mas elevada de 0.9, si nos fijamos en una correlacion mayor a 0.8 se añaden 38 variables a la cuenta para un total de 191 y para una correlacion mayor a 0.7 se añaden 30 variables mas, para un total de 221 variables es decir un 0.71% de las variables del data set, esto nos podria traer problemas de multicolinealiad con nuestro modelo y afectar su performance, por lo que hay que trabajar con las variables que mejor expliquen nuestro modelo. 
+
+En este sentido tambien exploramos la varianza en los datos de cada columna, encontramos que ninguno tiene varianza 0 y hay 257 datos que si tienen una varianza cercana a 0, que podemos interpretar esto en que tengan poca incidencia en la funcion a determinar por el modelo o por el contrario, que tengan alto grado de impacto en la funcion y capacidad de prediccion del modelo. Importante para entender el data set de entrada.
 
 Antes de empezar a analizar las muchas variables similares que hay, comenzamos estudiando las distribuciones para las variables de edad, la target y las tres variables desconocidas. 
 
